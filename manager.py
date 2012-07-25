@@ -82,7 +82,5 @@ class Manager(threading.Thread):
     
     def stop(self):
         self.running = False
-        self.workersCond.acquire()
-        self.workersCond.notify()
-        self.workersCond.release()
+        self.notifyJoin()
 

@@ -7,8 +7,12 @@ import select
 class Server:
     def __init__(self, options):
         self.options = options
+        self.running = True
         self.manager = manager.Manager(self.options)
         self.manager.start()
+
+    def stop(self):
+        self.running = False
 
     def run(self):
 
@@ -25,12 +29,11 @@ class Server:
         connections = {}
 
         try:
-            while True:
+            while self.running:
                 events = epoll.poll()
                 for fd, event in events:
 
                     if fd == listener:
-                        ""
                         (clientsock, address) = sock.accept()
                         clientsock.setblocking(0)
                         fileno = clientsock.fileno()
@@ -43,10 +46,13 @@ class Server:
                         connections[fd]['sock'].close()
                         del connections[fd]
 
+        except KeyboardInterrupt:
+            print "ctrlc"
+
         finally:
             epoll.unregister(listener)
             epoll.close()
             sock.close()
         
-        self.manager.notifyJoin() 
+        self.manager.stop()
         self.manager.join()
