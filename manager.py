@@ -9,23 +9,23 @@ class Manager(threading.Thread):
 
         threading.Thread.__init__(self)
 
-        """ list of workers """
+        # list of workers
         self.workers = []
 
-        """ mutex for the list of workers """
+        # mutex for the list of workers
         self.workersLock = threading.RLock()
 
-        """ condition variable indicating that a thread 
-        finished and should be joined """
+        # condition variable indicating that a thread 
+        # finished and should be joined
         self.workersCond = threading.Condition()
 
-        """ flag indicating that we're still running """
+        # flag indicating that we're still running
         self.running = True
         
-        """ application options """
+        # application options
         self.options = options 
 
-        """ joinable threads queue """
+        # joinable threads queue
         self.joinable = Queue.Queue()
    
     def dispatch(self, conn):
@@ -38,11 +38,12 @@ class Manager(threading.Thread):
                 cmd = sock.recv(1024)
             except socket.error, e:
                 if e.args[0] in { errno.EINTR, errno.EAGAIN, errno.EWOULDBLOCK }:
+                    # retry on eintr, eagain and ewouldblock
                     continue
             break
 
         if not cmd or len(cmd) == 0:
-            """ client closed the connection """
+            # client closed the connection
             return False
         
 
@@ -76,8 +77,8 @@ class Manager(threading.Thread):
         self.workers.append(w)
 
     def removeWorker(self, w):
-        """ we're locking here because we don't
-        want to end up using this worker in dispatch() """
+        # we're locking here because we don't
+        # want to end up using this worker in dispatch()
         self.workersLock.acquire()
         self.workers.remove(w)
         self.workersLock.release()
@@ -87,9 +88,9 @@ class Manager(threading.Thread):
             self.joinable.put(worker)
             self.removeWorker(worker)
 
-        """ notify so that run()
-        can go on joining what's in the 
-        joinable queue """
+        # notify so that run()
+        # can go on joining what's in the 
+        # joinable queue
         self.workersCond.acquire()
         self.workersCond.notify()
         self.workersCond.release()
@@ -101,7 +102,7 @@ class Manager(threading.Thread):
 
             self.workersCond.acquire()
 
-            """ wait for the signal """
+            # wait for the signal
             self.workersCond.wait()
 
             while not self.joinable.empty():

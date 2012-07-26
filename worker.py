@@ -1,6 +1,8 @@
 import socket
 import threading
 import Queue
+import re
+import command
 
 class Worker(threading.Thread):
 
@@ -22,8 +24,7 @@ class Worker(threading.Thread):
         sock = job['sock']
         addr = job['addr']
         cmd = job['cmd']
-
-        print "Got " + cmd + " from " + addr[0] + ":" + str(addr[1])
+        print command.Command.processCmd(re.compile("\s").split(cmd.strip()))
 
     def run(self):
         while not self.queue.empty():
