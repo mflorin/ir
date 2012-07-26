@@ -24,7 +24,7 @@ class Worker(threading.Thread):
         sock = job['sock']
         addr = job['addr']
         cmd = job['cmd']
-        print command.Command.processCmd(re.compile("\s").split(cmd.strip()))
+        sock.send(command.Command.processCmd(re.compile("\s").split(cmd.strip())) + "\r\n")
 
     def run(self):
         while not self.queue.empty():
