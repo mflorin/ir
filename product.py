@@ -73,6 +73,7 @@ class Product:
     def stockSet(sku, stock):
         # direct list assignement is atomic
         Product.stock[sku] = stock
+        return True
     
     """
     Decrement from stock
@@ -103,7 +104,7 @@ class Product:
     """
     @staticmethod
     def stockGet(sku):
-        return Product.stock[sku] if sku in Product.stock else 0
+        return Product.stock[sku] if sku in Product.stock else None
 
 
     """
@@ -155,10 +156,39 @@ class Product:
         return True
 
     """
+    Set the number of reserved items
+    """
+    @staticmethod
+    def reservationSet(sku, clid, qty):
+        
+        ret = 0
+
+        Product.lock(sku)
+       
+        Product._initProductUnlocked(sku, clid)
+
+        stock = Product.stockGet(sku)
+
+        diff = qty - Product.reserved[sku][clid]
+        if Product.totalReservations[sku] + diff <= stock:
+            Product.reserved[sku][clid] = qty
+            Product.totalReservations[sku] += diff
+        else:
+            ret = stock
+
+
+        Product.unlock(sku)
+
+        return ret
+
+
+    """
     Get info on a product
     """
     @staticmethod
     def info(sku):
+        if not sku in Product.productLocks:
+            return None
         # TODO: should we really lock?
         return {
             'stock': Product.stockGet(sku),

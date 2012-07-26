@@ -1,17 +1,18 @@
+import json
 from product import Product
 
 class Command:
 
-    commands = [ 
-        'productAdd',
-        'reservationAdd', 
-        'reservationDel',
-        'reservationSet',
-        'stockSet',
-        'stockDec',
-        'stockGet',
-        'info'
-    ]
+    commands = {
+        'productAdd': [2, 'productadd sku stock'],
+        'reservationAdd': [3, 'reservationAdd client_id sku qty'],
+        'reservationDel': [3, 'reservationDel client_id sku qty'],
+        'reservationSet': [3, 'reservationSet client_id sku qty'],
+        'stockSet': [2, 'stockSet sku stock'],
+        'stockDec': [2, 'stockDec sku qty'],
+        'stockGet': [1, 'stockGet sku'],
+        'info': [1, 'info sku']
+    }
 
     returnCodes = {
         0: 'success',
@@ -34,21 +35,34 @@ class Command:
         cmd = args[0]
         f = getattr(Command, cmd + 'Cmd', None)
         if cmd not in Command.commands or not f or not callable(f):
-            return Command.result(Command.RET_ERR_CMD, [cmd])
+            return Command.result(Command.RET_ERR_CMD)
         
+        # check the number of parameters
+        cmdInfo = Command.commands[cmd]
+        if len(args[1:]) != cmdInfo[0]:
+            return Command.result(Command.RET_ERR_ARGS, cmdInfo[1])
+         
         return f(args[1:])
             
     """
     packs the result and returns it
     """
     @staticmethod
-    def result(code = 0, data = None):
+    def result(code = 0, msg = None):
+
         if not Command.returnCodes[code]:
-            return 'res: -1, msg: internal error, data: ' + str(code)
-        ret = 'res: ' + str(code) + ', msg: ' + Command.returnCodes[code]
-        if data:
-            ret += ', data: ' + ','.join(data)
-        return ret
+            ret = {
+                'code': -1,
+                'data': 'internal error'
+            }
+        else:
+            ret = {'code': code}
+            if not msg:
+                ret['data'] = Command.returnCodes[code]
+            else:
+                ret['data'] = msg
+
+        return json.dumps(ret)
        
 
     """ ---------------------- COMMANDS ---------------------- """
@@ -58,8 +72,7 @@ class Command:
     """
     @staticmethod
     def productAddCmd(args):
-        if len(args) != 2:
-            return Command.result(Command.RET_ERR_ARGS, ['addProductCmd sku stock'])
+
         sku = args[0]
         stock = int(args[1])
 
@@ -74,8 +87,6 @@ class Command:
     """
     @staticmethod
     def stockSetCmd(args):
-        if len(args) != 2:
-            return Command.result(Command.RET_ERR_ARGS, ['stockSet sku stock'])
         
         sku = args[0]
         qty = int(args[1])
@@ -90,28 +101,25 @@ class Command:
     """
     @staticmethod
     def stockGetCmd(args):
-        if len(args) != 1:
-            return Command.result(Command.RET_ERR_ARGS, ['stockGet sku'])
 
-        if Product.stockGet(args[0]):
-            return Command.result(Command.RET_SUCCESS)
+        stock = Product.stockGet(args[0])
+        if not stock:
+            return Command.result(Command.RET_ERR_GENERAL, 'product not found')
         else:
-            return Command.result(Command.RET_ERR_GENERAL)
+            return Command.result(Command.RET_SUCCESS, stock)
 
     """
     decrease the stock
     """
     @staticmethod
     def stockDecCmd(args):
-        if len(args) != 2:
-            return Command.result(Command.RET_ERR_ARGS, ['stockDec sku qty'])
 
         sku = args[0]
         qty = int(args[1])
 
         ret = Product.stockDec(sku, qty)
         if ret > -1:
-            return Command.result(Command.RET_SUCCESS, ['stock: ' + str(ret)])
+            return Command.result(Command.RET_SUCCESS, {'stock': ret})
         else:
             return Command.result(Command.RET_ERR_GENERAL)
 
@@ -120,8 +128,6 @@ class Command:
     """
     @staticmethod
     def reservationAddCmd(args):
-        if len(args) != 3:
-            return Command.result(Command.RET_ERR_ARGS, ['reservationAdd client_id sku qty'])
 
         clid = args[0]
         sku = args[1]
@@ -129,7 +135,7 @@ class Command:
 
         ret = Product.reservationAdd(sku, clid, qty)
         if ret > 0:
-            return Command.result(Command.RET_ERR_GENERAL, ['not enough stock (' + str(ret) + ')'])
+            return Command.result(Command.RET_ERR_GENERAL, 'not enough stock (stock: ' + str(ret) + ')')
         else:
             return Command.result(Command.RET_SUCCESS)
 
@@ -138,8 +144,6 @@ class Command:
     """
     @staticmethod
     def reservationDelCmd(args):
-       if len(args) != 3:
-           return Command.result(Command.RET_ERR_ARGS, ['reservationDel client_id sku qty'])
        clid = args[0]
        sku = args[1]
        qty = int(args[2])
@@ -147,13 +151,28 @@ class Command:
        return Command.result(Command.RET_SUCCESS)
 
     """
+    reservationSet command
+    """
+    @staticmethod
+    def reservationSetCmd(args):
+       clid = args[0]
+       sku = args[1]
+       qty = int(args[2])
+       Product.reservationSet(sku, clid, qty)
+       ret = Product.reservationSet(sku, clid, qty)
+       if ret > 0:
+           return Command.result(Command.RET_ERR_GENERAL, 'not enough stock (stock: ' + str(ret) + ')')
+       else:
+           return Command.result(Command.RET_SUCCESS)
+
+    """
     get info on a product
     """
     @staticmethod
     def infoCmd(args):
-        if len(args) != 1:
-            return Command.result(Command.RET_ERR_ARGS, ['info sku'])
-        
         ret = Product.info(args[0])
-        return Command.result(Command.RET_SUCCESS, [str(ret['reserved']) + '|' + str(ret['stock'])])
+        if not ret:
+            return Command.result(Command.RET_ERR_GENERAL, 'product not found')
+        else:
+            return Command.result(Command.RET_SUCCESS, ret)
 
