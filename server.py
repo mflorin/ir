@@ -25,7 +25,7 @@ class Server:
 
         listener = sock.fileno()
         epoll = select.epoll()
-        epoll.register(listener, select.EPOLLIN)
+        epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
         connections = {}
 
         try:
@@ -40,14 +40,24 @@ class Server:
                         epoll.register(fileno, select.EPOLLIN)
                         connections[fileno] = {'sock': clientsock, 'addr': address}
                     elif event & select.EPOLLIN:
-                        self.manager.dispatch(connections[fd])
+                        if self.manager.dispatch(connections[fd]) != True:
+                            """ Client closed connection """
+                            connections[fileno]['sock'].shutdown(socket.SHUT_RDWR)
+                            epoll.modify(fileno, 0)
                     elif event & select.EPOLLHUP:
                         epoll.unregister(fd)
+                        addr = connections[fd]['addr']
+                        print "closing " + addr[0] + ":" + str(addr[1])
                         connections[fd]['sock'].close()
                         del connections[fd]
 
         except KeyboardInterrupt:
             print "ctrlc"
+
+        except:
+            epoll.unregister(listener)
+            epoll.close()
+            sock.close()
 
         finally:
             epoll.unregister(listener)

@@ -1,5 +1,8 @@
 import threading
 import worker
+import socket
+import errno
+import Queue
 
 class Manager(threading.Thread):
     def __init__(self, options):
@@ -22,12 +25,27 @@ class Manager(threading.Thread):
         """ application options """
         self.options = options 
 
+        """ joinable threads queue """
+        self.joinable = Queue.Queue()
    
     def dispatch(self, conn):
         processed = False
         sock = conn['sock']
         addr = conn['addr']
-        cmd = sock.recv(1024)
+
+        while True:
+            try:
+                cmd = sock.recv(1024)
+            except socket.error, e:
+                if e.args[0] in { errno.EINTR, errno.EAGAIN, errno.EWOULDBLOCK }:
+                    continue
+            break
+
+        if not cmd or len(cmd) == 0:
+            """ client closed the connection """
+            return False
+        
+
         job = {'sock': sock, 'addr': addr, 'cmd': cmd}
         self.workersLock.acquire()
         if len(self.workers) < self.options.workers:
@@ -43,7 +61,11 @@ class Manager(threading.Thread):
                     break
         self.workersLock.release()
         if not processed:
-            print "Connection from " + addr[0] + ":" + str(addr[1]) + " dropped"
+            print "Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped"
+            return False
+        else:
+            return True
+
         
     def createWorker(self):
         w = worker.Worker(self, self.options)
@@ -51,35 +73,46 @@ class Manager(threading.Thread):
         return w
 
     def addWorker(self, w):
-        self.workersLock.acquire()
         self.workers.append(w)
-        self.workersLock.release()
 
     def removeWorker(self, w):
+        """ we're locking here because we don't
+        want to end up using this worker in dispatch() """
         self.workersLock.acquire()
         self.workers.remove(w)
         self.workersLock.release()
 
-    def notifyJoin(self):
+    def notifyJoin(self, worker = None):
+        if worker:
+            self.joinable.put(worker)
+            self.removeWorker(worker)
+
+        """ notify so that run()
+        can go on joining what's in the 
+        joinable queue """
         self.workersCond.acquire()
         self.workersCond.notify()
         self.workersCond.release()
 
+    """ this method's main purpose is to join
+    worker threads from the joinable queue """
     def run(self):
         while self.running:
-            self.workersCond.acquire()
-            self.workersCond.wait()
-            self.workersLock.acquire()
-            for w in self.workers:
-                w.join(.2)
-                if not w.isAlive():
-                    print str(w.ident) + " joined"
-                    self.workers.remove(w)
 
-            self.workersLock.release()
+            self.workersCond.acquire()
+
+            """ wait for the signal """
+            self.workersCond.wait()
+
+            while not self.joinable.empty():
+                w = self.joinable.get()
+                w.join()
+                self.joinable.task_done()
 
             self.workersCond.release()
-    
+
+        self.joinable.join()
+
     def stop(self):
         self.running = False
         self.notifyJoin()

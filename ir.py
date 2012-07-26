@@ -15,7 +15,6 @@ if __name__ == "__main__":
 
     DEFAULT_PORT = 2000
     DEFAULT_WORKERS = 200
-    DEFAULT_QUEUE_SIZE = 5
     DEFAULT_VERBOSITY = VERB_MEDIUM
     DEFAULT_BACKLOG = 999999
 
@@ -44,10 +43,6 @@ if __name__ == "__main__":
         default = DEFAULT_BACKLOG,
         help="TCP backlog (default " + str(DEFAULT_BACKLOG) + ")")
 
-    parser.add_argument('-q', '--queue_size', 
-        type = int,
-        default = DEFAULT_QUEUE_SIZE,
-        help = "worker's queue size (default " + str(DEFAULT_QUEUE_SIZE) + ")")
     parser.add_argument('-v', '--verbosity',
         type = int,
         default = DEFAULT_VERBOSITY,

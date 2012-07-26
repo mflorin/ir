@@ -9,7 +9,7 @@ class Worker(threading.Thread):
         self.daemon = True
         self.manager = manager
         self.options = options
-        self.queue = Queue.Queue(self.options.queue_size)
+        self.queue = Queue.Queue()
 
     def isAvailable(self):
         return not self.queue.full()
@@ -31,4 +31,4 @@ class Worker(threading.Thread):
             self.queue.task_done()
 
         self.queue.join()
-        self.manager.notifyJoin()
+        self.manager.notifyJoin(self)
