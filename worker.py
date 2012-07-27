@@ -25,11 +25,15 @@ class Worker(threading.Thread):
 
         sock = job['sock']
         addr = job['addr']
-        cmd = job['cmd']
-        try:
-            sock.send(command.Command.processCmd(re.compile("\s").split(cmd.strip())) + "\r\n")
-        except:
-             Logger.warn(sys.exc_info()[1])
+        cmd = job['cmd'].strip()
+        Logger.debug(cmd)
+        for c in cmd.split("\n"):
+            c = c.strip()
+            try:
+                sock.send(command.Command.processCmd(re.compile("\s").split(c)) + "\r\n")
+            except:
+                Logger.warn("client " + addr[0] + ":" + str(addr[1]) + " probably left while trying to send response for command `" + c + "`")
+                Logger.warn(sys.exc_info()[1])
             
 
     def run(self):
