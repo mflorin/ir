@@ -2,6 +2,7 @@ import socket
 import threading
 import Queue
 import re
+import sys
 import command
 from logger import Logger
 

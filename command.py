@@ -41,7 +41,7 @@ class Command:
         # check the number of parameters
         cmdInfo = Command.commands[cmd]
         if len(args[1:]) != cmdInfo[0]:
-            Logger.error(cmd + " needs " + str(cmdInfo[0]) + " arguments. Only " + len(args[1:]) + " were given. Received command was `" + str(args) + "`")
+            Logger.error(cmd + " needs " + str(cmdInfo[0]) + " arguments. Only " + str(len(args[1:])) + " were given. Received command was `" + str(args) + "`")
             return Command.result(Command.RET_ERR_ARGS, cmdInfo[1])
          
         return f(args[1:])
