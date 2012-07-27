@@ -1,11 +1,16 @@
+import time
 import threading
 
 class Product:
     
     # reserved quantities dictionary
+    # timestamp represents the time the reservation was made
+    # timestamp is updated to the current timestamp each time
+    # an update (add, set) is performed on the reservation for 
+    # the associated sku and client id.
     # sku1 ->
-    #   clid1 -> qty1
-    #   clid2 -> qty2
+    #   clid1 -> qty1, timestamp
+    #   clid2 -> qty2, timestamp
     #   ...
     # sku2 -> 
     # ...
@@ -26,6 +31,17 @@ class Product:
     # products and allow operating on 
     # two or more products in the same time
     productLocks = {}
+
+    """
+    Iterates through all the product reservations
+    with locking
+    """
+    @staticmethod
+    def reservations():
+        for sku in Product.productLocks:
+            Product.lock(sku)
+            yield [sku,Product.reserved[sku]]
+            Product.unlock(sku)
 
     @staticmethod
     def lock(sku):
@@ -50,7 +66,7 @@ class Product:
             Product.reserved[sku] = {}
 
         if not clid in Product.reserved[sku]:
-            Product.reserved[sku][clid] = 0
+            Product.reserved[sku][clid] = [0, 0]
 
 
     """
@@ -123,7 +139,8 @@ class Product:
         stock = Product.stockGet(sku)
 
         if Product.totalReservations[sku] + qty <= stock:
-            Product.reserved[sku][clid] += qty
+            Product.reserved[sku][clid][0] += qty
+            Product.reserved[sku][clid][1] = time.time()
             Product.totalReservations[sku] += qty
         else:
             ret = stock
@@ -145,7 +162,8 @@ class Product:
         Product.totalReservations[sku] -= qty
         if Product.totalReservations[sku] < 0 :
             Product.totalReservations[sku] = 0
-        Product.reserved[sku][clid] -= qty
+        Product.reserved[sku][clid][0] -= qty
+        Product.reserved[sku][clid][1] = time.time()
         if Product.reserved[sku][clid] < 0:
             Product.reserved[sku][clid] = 0
 
@@ -167,9 +185,10 @@ class Product:
 
         stock = Product.stockGet(sku)
 
-        diff = qty - Product.reserved[sku][clid]
+        diff = qty - Product.reserved[sku][clid][0]
         if Product.totalReservations[sku] + diff <= stock:
-            Product.reserved[sku][clid] = qty
+            Product.reserved[sku][clid][0] = qty
+            Product.reserved[sku][clid][1] = time.time()
             Product.totalReservations[sku] += diff
         else:
             ret = stock

@@ -37,3 +37,7 @@ class Logger:
     def critical(*args):
         Logger.logger.critical(args[0])
 
+    @staticmethod
+    def marker():
+        Logger.debug('--- marker ---')
+

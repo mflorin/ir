@@ -30,10 +30,17 @@ class Worker(threading.Thread):
         for c in cmd.split("\n"):
             c = c.strip()
             try:
-                sock.send(command.Command.processCmd(re.compile("\s").split(c)) + "\r\n")
+                res = command.Command.processCmd(re.compile("\s").split(c)) + "\r\n"
+            except:
+                Logger.exception(sys.exc_info()[1])
+                continue
+
+            try:
+                sock.send(res)
             except:
                 Logger.warn("client " + addr[0] + ":" + str(addr[1]) + " probably left while trying to send response for command `" + c + "`")
                 Logger.warn(sys.exc_info()[1])
+                continue
             
 
     def run(self):

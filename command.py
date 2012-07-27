@@ -6,13 +6,13 @@ class Command:
 
     commands = {
         'productAdd': [2, 'productAdd sku stock'],
+        'productInfo': [1, 'productInfo sku'],
         'reservationAdd': [3, 'reservationAdd client_id sku qty'],
         'reservationDel': [3, 'reservationDel client_id sku qty'],
         'reservationSet': [3, 'reservationSet client_id sku qty'],
         'stockSet': [2, 'stockSet sku stock'],
         'stockDec': [2, 'stockDec sku qty'],
         'stockGet': [1, 'stockGet sku'],
-        'info': [1, 'info sku']
     }
 
     returnCodes = {
@@ -172,7 +172,7 @@ class Command:
     get info on a product
     """
     @staticmethod
-    def infoCmd(args):
+    def productInfoCmd(args):
         ret = Product.info(args[0])
         if not ret:
             return Command.result(Command.RET_ERR_GENERAL, 'product not found')

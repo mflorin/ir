@@ -1,16 +1,20 @@
 import socket
 import threading
-import worker
-import manager
 import select
+
+import worker
+from manager import Manager
 from logger import Logger
+from expiration import Expiration
 
 class Server:
     def __init__(self, options):
         self.options = options
         self.running = True
-        self.manager = manager.Manager(self.options)
+        self.manager = Manager(self.options)
         self.manager.start()
+        self.expiration = Expiration(self.options.cleanup_interval, self.options.ttl)
+        self.expiration.start()
 
     def stop(self):
         self.running = False
@@ -70,5 +74,8 @@ class Server:
         
         self.manager.stop()
         self.manager.join()
+        Logger.info("waiting for the cleanup thread to finish ...")
+        self.expiration.stop()
+        self.expiration.join()
 
         Logger.info("ItemReservation server ended")

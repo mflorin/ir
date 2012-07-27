@@ -9,6 +9,8 @@ import socket
 import logging
 from logger import Logger
 
+VERSION = "1.0.0"
+
 DEFAULT_CONFIG_FILE = '/etc/itemreservation/itemreservation.conf'
 DEFAULT_HOST = '0.0.0.0'
 DEFAULT_PORT = 2000
@@ -17,8 +19,8 @@ DEFAULT_LOG_LEVEL = 'warning'
 DEFAULT_LOG_FILE = '/var/log/ir/ir.log'
 DEFAULT_BACKLOG = 0
 DEFAULT_DEBUG = False
-
-VERSION = "1.0.0"
+DEFAULT_TTL = 300
+DEFAULT_CLEANUP_INTERVAL = 10
 
 # used when parsing the log level from the
 # configuration file into a logging module level
@@ -77,6 +79,8 @@ if __name__ == "__main__":
             Options.log_level = config.get('general', 'log_level') if config.has_option('general', 'log_level') else DEFAULT_LOG_LEVEL
             Options.log_file = config.get('general', 'log_file') if config.has_option('general', 'log_file') else DEFAULT_LOG_FILE
             Options.backlog = config.getint('general', 'backlog') if config.has_option('general', 'backlog') else DEFAULT_BACKLOG
+            Options.ttl = config.getint('general', 'ttl') if config.has_option('general', 'ttl') else DEFAULT_TTL
+            Options.cleanup_interval = config.getint('general', 'cleanup_interval') if config.has_option('general', 'cleanup_interval') else DEFAULT_CLEANUP_INTERVAL
 
             if Options.backlog <= 0:
                 Options.backlog = socket.SOMAXCONN
@@ -101,6 +105,10 @@ if __name__ == "__main__":
         ch.setLevel(Options.log_level)
         ch.setFormatter(Logger.getFormatter())
         Logger.logger.addHandler(ch)
+
+    # interval to run the cleanup
+    Options.cleanup_interval = DEFAULT_CLEANUP_INTERVAL
+    Options.ttl = DEFAULT_TTL
 
     if not Options.debug:
         pid = os.fork()

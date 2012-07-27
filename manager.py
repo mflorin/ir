@@ -62,7 +62,7 @@ class Manager(threading.Thread):
                     break
         self.workersLock.release()
         if not processed:
-            print "Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped"
+            logger.warn("Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped")
             return False
         else:
             return True
