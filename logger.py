@@ -38,6 +38,10 @@ class Logger:
         Logger.logger.critical(args[0])
 
     @staticmethod
+    def exception(*args):
+        Logger.logger.warn(args[0])
+
+    @staticmethod
     def marker():
         Logger.debug('--- marker ---')
 
