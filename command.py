@@ -4,15 +4,19 @@ from logger import Logger
 
 class Command:
 
+    # character ending a command
+    SEPARATOR = "\n"
+
     commands = {
-        'productAdd': [2, 'productAdd sku stock'],
-        'productInfo': [1, 'productInfo sku'],
-        'reservationAdd': [3, 'reservationAdd client_id sku qty'],
-        'reservationDel': [3, 'reservationDel client_id sku qty'],
-        'reservationSet': [3, 'reservationSet client_id sku qty'],
-        'stockSet': [2, 'stockSet sku stock'],
-        'stockDec': [2, 'stockDec sku qty'],
-        'stockGet': [1, 'stockGet sku'],
+        'productAdd': {'args':2, 'help':'productAdd sku stock'},
+        'productInfo': {'args':1, 'help':'productInfo sku'},
+        'reservationAdd': {'args':3, 'help':'reservationAdd client_id sku qty'},
+        'reservationDel': {'args':3, 'help':'reservationDel client_id sku qty'},
+        'reservationSet': {'args':3, 'help':'reservationSet client_id sku qty'},
+        'stockSet': {'args':2, 'help':'stockSet sku stock'},
+        'stockDec': {'args':2, 'help':'stockDec sku qty'},
+        'stockGet': {'args':1, 'help':'stockGet sku'},
+        'status': {'args':0, 'help':'status'}
     }
 
     returnCodes = {
@@ -27,6 +31,24 @@ class Command:
     RET_ERR_ARGS = 200
     RET_ERR_GENERAL = 300
 
+    """
+    register a command
+    @param handler Command handler
+    @param cmd Command
+    @param nargs Number of arguments the command receives
+    @param help Help string
+    """
+    @staticmethod
+    def register(handler, cmd, args, help = None):
+        if cmd in Command.commands:
+            return False
+        Command.commands[cmd] = {
+            'args': args, 
+            'help': help, 
+            'handler': handler
+        }
+        return True
+
     """ 
     process a command and return a string
     as a result
@@ -34,15 +56,21 @@ class Command:
     @staticmethod 
     def processCmd(args):
         cmd = args[0]
-        f = getattr(Command, cmd + 'Cmd', None)
-        if cmd not in Command.commands or not f or not callable(f):
+        if cmd not in Command.commands:
             return Command.result(Command.RET_ERR_CMD)
-        
+
+        if 'handler' in Command.commands[cmd]:
+            f = Command.commands[cmd]['handler']
+        else:       
+            f = getattr(Command, cmd + 'Cmd', None)
+        if not f or not callable(f):
+            return Command.result(Command.RET_ERR_CMD)
+
         # check the number of parameters
         cmdInfo = Command.commands[cmd]
-        if len(args[1:]) != cmdInfo[0]:
-            Logger.error(cmd + " needs " + str(cmdInfo[0]) + " arguments. Only " + str(len(args[1:])) + " were given. Received command was `" + str(args) + "`")
-            return Command.result(Command.RET_ERR_ARGS, cmdInfo[1])
+        if len(args[1:]) != cmdInfo['args']:
+            Logger.error(cmd + " needs " + str(cmdInfo['args']) + " arguments. Only " + str(len(args[1:])) + " were given. Received command was `" + str(args) + "`")
+            return Command.result(Command.RET_ERR_ARGS, cmdInfo['help'])
          
         return f(args[1:])
             
@@ -179,3 +207,12 @@ class Command:
         else:
             return Command.result(Command.RET_SUCCESS, ret)
 
+    """
+    get system status
+    """
+    @staticmethod
+    def statusCmd(args):
+        ret = {
+            'products': len(Product.productLocks),
+        }
+        return Command.result(Command.RET_SUCCESS, ret)

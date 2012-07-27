@@ -3,7 +3,8 @@ import threading
 import Queue
 import re
 import sys
-import command
+
+from command import Command
 from logger import Logger
 
 class Worker(threading.Thread):
@@ -25,23 +26,30 @@ class Worker(threading.Thread):
 
         sock = job['sock']
         addr = job['addr']
-        cmd = job['cmd'].strip()
-        Logger.debug(cmd)
-        for c in cmd.split("\n"):
+        cmds = job['commands']
+        socket_ok = True
+        for c in cmds:
             c = c.strip()
             try:
-                res = command.Command.processCmd(re.compile("\s").split(c)) + "\r\n"
+                res = Command.processCmd(re.compile("\s").split(c)) + "\r\n"
             except:
-                Logger.exception(sys.exc_info()[1])
+                Logger.exception()
                 continue
 
             try:
-                sock.send(res)
+                if socket_ok:
+                    if sock.fileno() in self.manager.server.connections:
+                        # send the response only if we still have 
+                        # someone to talk to
+                        sock.send(res)
+                    else:
+                        socket_ok = False
+                        Logger.info("client " + addr[0] + ":" + str(addr[1]) + " left while trying to send response for command `" + c + "`")
+
             except:
-                Logger.warn("client " + addr[0] + ":" + str(addr[1]) + " probably left while trying to send response for command `" + c + "`")
-                Logger.warn(sys.exc_info()[1])
-                continue
-            
+                socket_ok = False
+                Logger.warn("client " + addr[0] + ":" + str(addr[1]) + " left while trying to send response for command `" + c + "`")
+                # we're not going to insist on writing to a broken socket
 
     def run(self):
         while not self.queue.empty():

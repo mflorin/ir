@@ -3,9 +3,18 @@ import worker
 import socket
 import errno
 import Queue
+import inspect
+import sys
+
+from command import Command
+from logger import Logger
 
 class Manager(threading.Thread):
-    def __init__(self, options):
+
+    # 1M buffer size
+    MAX_BUFFER_SIZE = 1048576
+
+    def __init__(self, server, options):
 
         threading.Thread.__init__(self)
 
@@ -27,8 +36,25 @@ class Manager(threading.Thread):
 
         # joinable threads queue
         self.joinable = Queue.Queue()
+
+        # read buffer to collect data from sockets
+        # and split it later by \n and feed it to workers
+        # when a \n is met
+        # fd -> buffer
+        self.readBuffer = {}
    
+        # register commands
+        Command.register(self.workersCmd, 'workers', 0)
+        
+        # server instance
+        self.server = server
+
+    """
+    read bytes from the socket and try to split them
+    into commands which will be feeded to the workers
+    """
     def dispatch(self, conn):
+
         processed = False
         sock = conn['sock']
         addr = conn['addr']
@@ -44,10 +70,33 @@ class Manager(threading.Thread):
 
         if not cmd or len(cmd) == 0:
             # client closed the connection
+            Logger.debug("0 bytes read from " + addr[0] + ":" + str(addr[1]))
             return False
-        
 
-        job = {'sock': sock, 'addr': addr, 'cmd': cmd}
+        fd = sock.fileno()
+        if fd not in self.readBuffer:
+            self.readBuffer[fd] = ""
+
+        self.readBuffer[fd] += cmd
+
+        if not Command.SEPARATOR in self.readBuffer[fd]:
+            if len(self.readBuffer[fd]) > Manager.MAX_BUFFER_SIZE:
+                self.readBuffer[fd] = ""
+            return True
+
+        # split the buffer into commands and feed the workers
+        cmds = self.readBuffer[fd].split(Command.SEPARATOR)
+        
+        # retain the last partial command if any
+        lastcmd = cmds[len(cmds) - 1].strip()
+        if len(lastcmd) > 0:
+            self.readBuffer[fd] = lastcmd
+        else:
+            self.readBuffer[fd] = ""
+
+        del cmds[len(cmds) - 1]
+
+        job = {'sock': sock, 'addr': addr, 'commands': cmds}
         self.workersLock.acquire()
         if len(self.workers) < self.options.workers:
             w = self.createWorker()
@@ -84,14 +133,23 @@ class Manager(threading.Thread):
         self.workersLock.release()
 
     def notifyJoin(self, worker = None):
-        if worker:
-            self.joinable.put(worker)
-            self.removeWorker(worker)
-
         # notify so that run()
         # can go on joining what's in the 
         # joinable queue
         self.workersCond.acquire()
+
+        if worker:
+            # it's essential to push the worker
+            # in the joinable queue AFTER acquiring
+            # the lock, otherwise we'll end up in
+            # a deadlock where the manager is
+            # fetching this fresh worker from the queue
+            # and gets blocked in join because the worker
+            # is holding the workersCond lock waiting
+            # for the manager to release it :)
+            self.joinable.put(worker)
+            self.removeWorker(worker)
+
         self.workersCond.notify()
         self.workersCond.release()
 
@@ -104,11 +162,18 @@ class Manager(threading.Thread):
 
             # wait for the signal
             self.workersCond.wait()
-
-            while not self.joinable.empty():
-                w = self.joinable.get()
-                w.join()
-                self.joinable.task_done()
+            
+            try:
+                while not self.joinable.empty():
+                    try:
+                        w = self.joinable.get()
+                        w.join()
+                        self.joinable.task_done()
+                    except:
+                        Logger.exception()
+                        continue
+            except:
+                Logger.exception()
 
             self.workersCond.release()
 
@@ -117,4 +182,8 @@ class Manager(threading.Thread):
     def stop(self):
         self.running = False
         self.notifyJoin()
+
+
+    def workersCmd(self, args):
+        return Command.result(Command.RET_SUCCESS, len(self.workers))
 
