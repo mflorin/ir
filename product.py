@@ -30,7 +30,6 @@ class Product:
     @staticmethod
     def lock(sku):
         if not sku in Product.productLocks:
-            print "NO LOCK FOR " + sku
             return False
         Product.productLocks[sku].acquire()
         return True
@@ -38,7 +37,6 @@ class Product:
     @staticmethod
     def unlock(sku):
         if not sku in Product.productLocks:
-            print "NO LOCK FOR " + sku
             return False
         Product.productLocks[sku].release()
         return True

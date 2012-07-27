@@ -7,13 +7,15 @@ import os
 import ConfigParser
 import socket
 import logging
+from logger import Logger
 
 DEFAULT_CONFIG_FILE = '/etc/itemreservation/itemreservation.conf'
 DEFAULT_HOST = '0.0.0.0'
 DEFAULT_PORT = 2000
 DEFAULT_WORKERS = 500
 DEFAULT_LOG_LEVEL = 'warning'
-DEFAULT_BACKLOG = socket.SOMAXCONN
+DEFAULT_LOG_FILE = '/var/log/ir/ir.log'
+DEFAULT_BACKLOG = 0
 DEFAULT_DEBUG = False
 
 VERSION = "1.0.0"
@@ -43,6 +45,11 @@ if __name__ == "__main__":
         default=DEFAULT_CONFIG_FILE, 
         help="configuration file")
 
+    parser.add_argument('-d', '--debug',
+        default = DEFAULT_DEBUG,
+        action='store_true',
+        help="run in console, don't detach")
+
     parser.add_argument('--version', 
         action='version', 
         version='%(prog)s ' + str(VERSION))
@@ -50,7 +57,6 @@ if __name__ == "__main__":
     try:
         parser.parse_args(sys.argv[1:], namespace = Options)
     except:
-        print "error: " + sys.exc_info()[0]
         sys.exit(1)
 
     if Options.file:
@@ -59,8 +65,8 @@ if __name__ == "__main__":
             'port': str(DEFAULT_PORT),
             'workers': str(DEFAULT_WORKERS),
             'log_level': str(DEFAULT_LOG_LEVEL),
+            'log_FILE': str(DEFAULT_LOG_FILE),
             'backlog': str(DEFAULT_BACKLOG),
-            'debug': str(DEFAULT_DEBUG)
         })
 
         try:
@@ -69,8 +75,11 @@ if __name__ == "__main__":
             Options.port = config.getint('general', 'port') if config.has_option('general', 'port') else DEFAULT_PORT
             Options.workers = config.getint('general', 'workers') if config.has_option('general', 'workers') else DEFAULT_WORKERS
             Options.log_level = config.get('general', 'log_level') if config.has_option('general', 'log_level') else DEFAULT_LOG_LEVEL
+            Options.log_file = config.get('general', 'log_file') if config.has_option('general', 'log_file') else DEFAULT_LOG_FILE
             Options.backlog = config.getint('general', 'backlog') if config.has_option('general', 'backlog') else DEFAULT_BACKLOG
-            Options.debug = config.getboolean('general', 'debug') if config.has_option('general', 'debug') else DEFAULT_DEBUG
+
+            if Options.backlog <= 0:
+                Options.backlog = socket.SOMAXCONN
         
         except:
             print "An error was encountered when parsing " + Options.file
@@ -83,6 +92,15 @@ if __name__ == "__main__":
         print 'Invalid log level `' + Options.log_level + '`'
         print 'Falling back to log level ' + DEFAULT_LOG_LEVEL
         Options.log_level = log_levels[DEFAULT_LOG_LEVEL]
+
+    Logger.init(Options)
+
+    if Options.debug:
+        # add console logging
+        ch = logging.StreamHandler()
+        ch.setLevel(Options.log_level)
+        ch.setFormatter(Logger.getFormatter())
+        Logger.logger.addHandler(ch)
 
     if not Options.debug:
         pid = os.fork()

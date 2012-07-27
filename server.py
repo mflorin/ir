@@ -3,6 +3,7 @@ import threading
 import worker
 import manager
 import select
+from logger import Logger
 
 class Server:
     def __init__(self, options):
@@ -28,6 +29,8 @@ class Server:
         epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
         connections = {}
 
+        Logger.info("ItemReservation server started")
+
         try:
             while self.running:
                 events = epoll.poll()
@@ -41,18 +44,19 @@ class Server:
                         connections[fileno] = {'sock': clientsock, 'addr': address}
                     elif event & select.EPOLLIN:
                         if self.manager.dispatch(connections[fd]) != True:
-                            """ Client closed connection """
+                            # Client closed connection
                             connections[fileno]['sock'].shutdown(socket.SHUT_RDWR)
                             epoll.modify(fileno, 0)
                     elif event & select.EPOLLHUP:
                         epoll.unregister(fd)
                         addr = connections[fd]['addr']
-                        print "closing " + addr[0] + ":" + str(addr[1])
+                        Logger.info(addr[0] + ":" + str(addr[1]) + " left")
                         connections[fd]['sock'].close()
                         del connections[fd]
 
         except KeyboardInterrupt:
-            print "ctrlc"
+            Logger.info("CTRL-C was pressed")
+            self.stop()
 
         except:
             epoll.unregister(listener)
@@ -66,3 +70,5 @@ class Server:
         
         self.manager.stop()
         self.manager.join()
+
+        Logger.info("ItemReservation server ended")

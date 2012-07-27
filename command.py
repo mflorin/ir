@@ -1,10 +1,11 @@
 import json
 from product import Product
+from logger import Logger
 
 class Command:
 
     commands = {
-        'productAdd': [2, 'productadd sku stock'],
+        'productAdd': [2, 'productAdd sku stock'],
         'reservationAdd': [3, 'reservationAdd client_id sku qty'],
         'reservationDel': [3, 'reservationDel client_id sku qty'],
         'reservationSet': [3, 'reservationSet client_id sku qty'],
@@ -40,6 +41,7 @@ class Command:
         # check the number of parameters
         cmdInfo = Command.commands[cmd]
         if len(args[1:]) != cmdInfo[0]:
+            Logger.error(cmd + " needs " + str(cmdInfo[0]) + " arguments. Only " + len(args[1:]) + " were given. Received command was `" + str(args) + "`")
             return Command.result(Command.RET_ERR_ARGS, cmdInfo[1])
          
         return f(args[1:])
@@ -77,6 +79,7 @@ class Command:
         stock = int(args[1])
 
         if Product.productAdd(sku, stock):
+            Logger.debug("product %s with stock %d was added" % (sku, stock))
             return Command.result(Command.RET_SUCCESS)
         else:
             return Command.result(Command.RET_ERR_GENERAL)

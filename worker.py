@@ -3,6 +3,7 @@ import threading
 import Queue
 import re
 import command
+from logger import Logger
 
 class Worker(threading.Thread):
 
@@ -24,7 +25,11 @@ class Worker(threading.Thread):
         sock = job['sock']
         addr = job['addr']
         cmd = job['cmd']
-        sock.send(command.Command.processCmd(re.compile("\s").split(cmd.strip())) + "\r\n")
+        try:
+            sock.send(command.Command.processCmd(re.compile("\s").split(cmd.strip())) + "\r\n")
+        except:
+             Logger.warn(sys.exc_info()[1])
+            
 
     def run(self):
         while not self.queue.empty():
