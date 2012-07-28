@@ -97,6 +97,7 @@ class Manager(threading.Thread):
         del cmds[len(cmds) - 1]
 
         job = {'sock': sock, 'addr': addr, 'commands': cmds}
+
         self.workersLock.acquire()
         if len(self.workers) < self.options.workers:
             w = self.createWorker()
@@ -106,10 +107,12 @@ class Manager(threading.Thread):
         else:
             for w in self.workers:
                 if (w.isAvailable()):
+                    Logger.debug('adding job')
                     w.addJob(job)
                     processed = True
                     break
         self.workersLock.release()
+
         if not processed:
             logger.warn("Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped")
             return False

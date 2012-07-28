@@ -1,5 +1,6 @@
-import logging
 import sys
+import traceback
+import logging
 
 from event import Event
 
@@ -57,10 +58,9 @@ class Logger:
 
     @staticmethod
     def exception(*args):
+        Logger.warn(traceback.format_exc())
         if args and len(args) > 0:
-            Logger.logger.warn(args[0])
-        else:
-            Logger.logger.warn(str(sys.exc_info()))
+            Logger.warn(args[0])
 
     @staticmethod
     def marker():

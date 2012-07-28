@@ -74,7 +74,10 @@ class Server:
                         # incoming data from client
                         if self.manager.dispatch(self.connections[fd]) != True:
                             # Client closed connection
-                            self.connections[fileno]['sock'].shutdown(socket.SHUT_RDWR)
+                            try:
+                                self.connections[fileno]['sock'].shutdown(socket.SHUT_RDWR)
+                            except:
+                                pass
                             epoll.modify(fileno, 0)
                     elif event & select.EPOLLHUP:
                         # socket shutdown
