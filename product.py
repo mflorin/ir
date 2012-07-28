@@ -39,9 +39,10 @@ class Product:
     @staticmethod
     def reservations():
         for sku in Product.productLocks:
-            Product.lock(sku)
-            yield [sku,Product.reserved[sku]]
-            Product.unlock(sku)
+            if sku in Product.reserved:
+                Product.lock(sku)
+                yield [sku,Product.reserved[sku]]
+                Product.unlock(sku)
 
     @staticmethod
     def lock(sku):

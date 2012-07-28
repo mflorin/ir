@@ -17,6 +17,8 @@ class Expiration(threading.Thread):
     def __init__(self, interval, ttl):
         self.interval = interval
         self.ttl = ttl
+        Logger.info('cleanup_interval: %d' % (self.interval))
+        Logger.info('ttl: %d' % (self.ttl))
         self.running = True
         super(Expiration, self).__init__()
 
@@ -26,13 +28,21 @@ class Expiration(threading.Thread):
     def run(self):
         
         while self.running:
-            Logger.marker()
             now = time.time()
-            for sku,r in Product.reservations():
-                for clid in r:
-                    if now - r[clid][1] > self.ttl:
-                        Logger.info("reservation for product " + sku + " and client " + str(clid) + " expired")
-                        del r[clid]
+
+            for sku in Product.productLocks:
+                if sku in Product.reserved:
+                    Product.lock(sku)
+                    _expired = []
+                    for clid in Product.reserved[sku]:
+                        if now - Product.reserved[sku][clid][1] > self.ttl:
+                            Logger.info("reservation for product " + sku + " and client " + str(clid) + " expired")
+                            _expired.append(clid)
+                    for clid in _expired:
+                        Product.totalReservations[sku] -= Product.reserved[sku][clid][0]
+                        del Product.reserved[sku][clid]
+                    del _expired
+                    Product.unlock(sku)
 
             time.sleep(self.interval)
     

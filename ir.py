@@ -69,6 +69,8 @@ if __name__ == "__main__":
             'log_level': str(DEFAULT_LOG_LEVEL),
             'log_FILE': str(DEFAULT_LOG_FILE),
             'backlog': str(DEFAULT_BACKLOG),
+            'ttl': str(DEFAULT_TTL),
+            'cleanup_interval': str(DEFAULT_CLEANUP_INTERVAL)
         })
 
         try:
@@ -105,10 +107,6 @@ if __name__ == "__main__":
         ch.setLevel(Options.log_level)
         ch.setFormatter(Logger.getFormatter())
         Logger.logger.addHandler(ch)
-
-    # interval to run the cleanup
-    Options.cleanup_interval = DEFAULT_CLEANUP_INTERVAL
-    Options.ttl = DEFAULT_TTL
 
     if not Options.debug:
         pid = os.fork()

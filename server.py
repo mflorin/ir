@@ -16,8 +16,8 @@ class Server:
         self.connections = {}
         self.manager = Manager(self, self.options)
         self.manager.start()
-#        self.expiration = Expiration(self.options.cleanup_interval, self.options.ttl)
-#        self.expiration.start()
+        self.expiration = Expiration(self.options.cleanup_interval, self.options.ttl)
+        self.expiration.start()
 
     def stop(self):
         self.running = False
@@ -74,13 +74,12 @@ class Server:
         epoll.unregister(listener)
         epoll.close()
         sock.close()
-       
+      
         Logger.debug("stopping manager") 
         self.manager.stop()
-        Logger.debug("joining manager")
         self.manager.join()
-        Logger.debug("waiting for the cleanup thread to finish ...")
-#        self.expiration.stop()
-#        self.expiration.join()
+        Logger.debug("waiting for the cleanup thread to finish")
+        self.expiration.stop()
+        self.expiration.join()
 
         Logger.info("ItemReservation server ended")
