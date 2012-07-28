@@ -179,12 +179,17 @@ class Manager(threading.Thread):
 
         self.joinable.join()
 
+    def start(self):
+        Logger.info('starging the workers manager')
+        super(Manager, self).start()
+
     def stop(self):
+        Logger.info('stopping the workers manager')
         self.running = False
         self.notifyJoin()
         self.join()
 
 
     def workersCmd(self, args):
-        return Command.result(Command.RET_SUCCESS, len(self.workers))
+        return Command.result(Command.RET_SUCCESS, {'active': len(self.workers), 'max': self.options.workers})
 

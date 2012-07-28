@@ -1,7 +1,11 @@
 import sys
 import socket
+import signal
 import logging
 import ConfigParser
+
+from command import Command
+from event import Event
 
 class Options(object):
     
@@ -40,6 +44,11 @@ class Options(object):
         'error': logging.ERROR,
         'critical': logging.CRITICAL
     }
+
+    @staticmethod
+    def init():
+        # register our "reloadCfg" command
+        Command.register(Options.reloadCfgCmd, 'reloadCfg', 0, 'reloadCfg')
 
     @staticmethod
     def load():
@@ -88,3 +97,12 @@ class Options(object):
                 print sys.exc_info()[1]
                 sys.exit(1)
 
+    @staticmethod
+    def reload():
+        Options.load()
+        Event.dispatch('reload')
+
+    @staticmethod
+    def reloadCfgCmd(args):
+        Options.reload()
+        return Command.result(Command.RET_SUCCESS)

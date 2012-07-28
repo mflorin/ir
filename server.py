@@ -8,34 +8,37 @@ from manager import Manager
 from logger import Logger
 from expiration import Expiration
 from db import Db
+from command import Command
 
 class Server:
 
     def __init__(self, options):
-        self.options = options
+
+        self.options = options.general
         self.running = True
         self.connections = {}
+
+        # workers manager
         self.manager = Manager(self, self.options)
         self.manager.start()
-        self.expiration = Expiration(self.options.cleanup_interval, self.options.ttl)
+
+        # expiration manager
+        self.expiration = Expiration(options.expiration)
         self.expiration.start()
+        
+        # database manager
+        self.db = Db(options.database)
+        
+        Command.register(self.shutdown, 'shutdown', 0, 'shutdown')
 
-        # initialize the persistence engine
-        self.db = None
-        if options.persistence and len(options.dbfile) > 0:
-            self.db = Db(options.dbfile, options.autosave_interval)
-            if os.path.exists(options.dbfile):
-                try:
-                    Logger.info('loading database from %s' % options.dbfile)
-                    self.db.load()
-                except Exception as e:
-                    Logger.critical(str(e))
 
-            if options.autosave_interval > 0:
-                self.db.start()
+    def shutdown(self, args):
+        self.stop()
+        return Command.result(Command.RET_SUCCESS)
 
     def stop(self):
         self.running = False
+
 
     def run(self):
 
@@ -84,8 +87,8 @@ class Server:
         except KeyboardInterrupt:
             Logger.debug('CTRL-C was pressed. Stopping server')
 
-        except:
-            Logger.exception(__file__ + ":" + str(sys.exc_info()))
+        except Exception as e:
+            Logger.exception(str(e))
 
         self.stop()
 
@@ -94,14 +97,12 @@ class Server:
         epoll.close()
         sock.close()
 
-        if self.db:
-            Logger.debug("stopping database engine")
-            self.db.stop()
+        self.db.stop()
       
-        Logger.debug("stopping manager") 
         self.manager.stop()
 
-        Logger.debug("waiting for the cleanup thread to finish")
         self.expiration.stop()
 
         Logger.info("ItemReservation server ended")
+
+       

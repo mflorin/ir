@@ -1,18 +1,35 @@
 import logging
 import sys
 
+from event import Event
+
 class Logger:
     # setting up the logger
     logger = logging.getLogger('ir')
     formatter = logging.Formatter('[%(asctime)s](%(levelname)s) %(message)s')
+    options = None
+    fh = None
 
     @staticmethod
-    def init(Options):
-        Logger.logger.setLevel(Options.log_level)
-        fh = logging.FileHandler(Options.log_file)
-        fh.setLevel(Options.log_level)
-        fh.setFormatter(Logger.formatter)
-        Logger.logger.addHandler(fh)
+    def init(options):
+        Logger.options = options
+        Logger.setup()
+        Event.register('reload', Logger.reload)
+
+    @staticmethod
+    def setup():
+        if Logger.fh:
+            Logger.logger.removeHandler(Logger.fh)
+
+        Logger.logger.setLevel(Logger.options.log_level)
+        Logger.fh = logging.FileHandler(Logger.options.log_file)
+        Logger.fh.setLevel(Logger.options.log_level)
+        Logger.fh.setFormatter(Logger.formatter)
+        Logger.logger.addHandler(Logger.fh)
+
+    @staticmethod
+    def reload(*args):
+        Logger.setup()
 
     @staticmethod
     def getFormatter():
