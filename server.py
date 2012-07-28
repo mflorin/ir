@@ -11,6 +11,7 @@ from logger import Logger
 from expiration import Expiration
 from db import Db
 from command import Command
+from event import Event
 
 class Server:
 
@@ -19,6 +20,7 @@ class Server:
         self.options = options.general
         self.running = True
         self.connections = {}
+        self.modules = []
 
         # workers manager
         self.manager = Manager(self, self.options)
@@ -34,9 +36,12 @@ class Server:
         # load external modules
         self.loadModules()
        
+        Event.register('reload', self.reloadEvent)
         
         Command.register(self.shutdown, 'shutdown', 0, 'shutdown')
 
+    def reloadEvent(self, *args):
+        self.loadModules()
 
     def loadModules(self):
         # load external modules
@@ -44,12 +49,16 @@ class Server:
             m = m.strip()
             if len(m) == 0:
                 continue
+            if m in self.modules:
+                continue
             try:
                 Logger.debug('loading module ' + m)
                 importlib.import_module(m)
+                self.modules.append(m)
             except Exception as e:
                 Logger.error('error while loading module ' + m)
                 Logger.exception(str(e))
+
 
     def shutdown(self, args):
         self.stop()

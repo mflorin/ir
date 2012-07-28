@@ -14,11 +14,11 @@ class TestPlugin:
         Command.register(TestPlugin.helloCmd, 'hello', 0, 'hello')
 
     @staticmethod
-    def reloadEvent(args):
+    def reloadEvent(*args):
         Logger.info('TestPlugin reload handler called')
 
     @staticmethod
-    def helloCmd(*args):
+    def helloCmd(args):
         Logger.info('Hello from TestPlugin')
         return Command.result(Command.RET_SUCCESS)
 
