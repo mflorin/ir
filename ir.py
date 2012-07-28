@@ -1,15 +1,21 @@
 #!/usr/bin/python
-import signal
-import sys
-import argparse
+
 import os
+import sys
+import signal
 import socket
 import logging
+import argparse
 
 from options import Options
 from server import Server
 from logger import Logger
 from db import Db
+
+def hand(sig, f):
+    print "test"
+ 
+signal.signal(signal.SIGUSR1, hand)
 
 VERSION = "1.0.0"
 

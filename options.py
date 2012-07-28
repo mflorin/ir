@@ -18,6 +18,7 @@ class Options(object):
         workers = 500
         backlog = 0
         debug = False
+        modules = ''
         pass
 
     class logger(object):
@@ -49,6 +50,14 @@ class Options(object):
     def init():
         # register our "reloadCfg" command
         Command.register(Options.reloadCfgCmd, 'reloadCfg', 0, 'reloadCfg')
+        
+        # reload config when receiving SIGUSR1
+        signal.signal(signal.SIGUSR1, Options.sigusr1)
+
+
+    @staticmethod
+    def sigusr1(sig, frame):
+        Options.reload()
 
     @staticmethod
     def load():
@@ -59,6 +68,7 @@ class Options(object):
                 'port': str(Options.general.port),
                 'workers': str(Options.general.workers),
                 'backlog': str(Options.general.backlog),
+                'modules': str(Options.general.modules),
                 'log_level': str(Options.logger.log_level),
                 'log_file': str(Options.logger.log_file),
                 'ttl': str(Options.expiration.ttl),
@@ -74,6 +84,7 @@ class Options(object):
                 Options.general.port = config.getint('general', 'port')
                 Options.general.workers = config.getint('general', 'workers')
                 Options.general.backlog = config.getint('general', 'backlog') 
+                Options.general.modules = config.get('general', 'modules') 
                 Options.logger.log_level = config.get('logger', 'log_level') 
                 Options.logger.log_file = config.get('logger', 'log_file')
                 Options.expiration.ttl = config.getint('expiration', 'ttl')

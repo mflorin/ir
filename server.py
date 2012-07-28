@@ -1,7 +1,9 @@
 import os
 import sys
+import errno
 import socket
 import select
+import importlib
 
 import worker
 from manager import Manager
@@ -29,8 +31,25 @@ class Server:
         # database manager
         self.db = Db(options.database)
         
+        # load external modules
+        self.loadModules()
+       
+        
         Command.register(self.shutdown, 'shutdown', 0, 'shutdown')
 
+
+    def loadModules(self):
+        # load external modules
+        for m in self.options.modules.split(','):
+            m = m.strip()
+            if len(m) == 0:
+                continue
+            try:
+                Logger.debug('loading module ' + m)
+                importlib.import_module(m)
+            except Exception as e:
+                Logger.error('error while loading module ' + m)
+                Logger.exception(str(e))
 
     def shutdown(self, args):
         self.stop()
@@ -55,8 +74,8 @@ class Server:
 
         Logger.info("ItemReservation server started")
 
-        try:
-            while self.running:
+        while self.running:
+            try:
                 events = epoll.poll()
                 for fd, event in events:
 
@@ -88,11 +107,18 @@ class Server:
                         self.connections[fd]['sock'].close()
                         del self.connections[fd]
 
-        except KeyboardInterrupt:
-            Logger.debug('CTRL-C was pressed. Stopping server')
+            except KeyboardInterrupt:
+                Logger.debug('CTRL-C was pressed. Stopping server')
+                break
 
-        except Exception as e:
-            Logger.exception(str(e))
+            except Exception as e:
+                if e.args[0] in {errno.EINTR}:
+                    # we do not want to exit because of SIGUSR1
+                    # which is our reload signal
+                    continue
+                else:
+                    Logger.exception(str(e))
+
 
         self.stop()
 
