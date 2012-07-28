@@ -56,6 +56,10 @@ class Db(threading.Thread):
     stop the thread
     """
     def stop(self):
+        if self.options.persistence:
+            # save when stopping
+            Logger.info('saving database to %s' % self.options.file_name)
+            self.save()
         if self.running:
             Logger.info('stopping the database manager')
             self.running = False
