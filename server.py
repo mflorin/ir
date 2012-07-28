@@ -1,12 +1,13 @@
+import os
 import sys
 import socket
-import threading
 import select
 
 import worker
 from manager import Manager
 from logger import Logger
 from expiration import Expiration
+from db import Db
 
 class Server:
 
@@ -18,6 +19,20 @@ class Server:
         self.manager.start()
         self.expiration = Expiration(self.options.cleanup_interval, self.options.ttl)
         self.expiration.start()
+
+        # initialize the persistence engine
+        self.db = None
+        if options.persistence and len(options.dbfile) > 0:
+            self.db = Db(options.dbfile, options.autosave_interval)
+            if os.path.exists(options.dbfile):
+                try:
+                    Logger.info('loading database from %s' % options.dbfile)
+                    self.db.load()
+                except Exception as e:
+                    Logger.critical(str(e))
+
+            if options.autosave_interval > 0:
+                self.db.start()
 
     def stop(self):
         self.running = False
@@ -66,20 +81,27 @@ class Server:
                         self.connections[fd]['sock'].close()
                         del self.connections[fd]
 
+        except KeyboardInterrupt:
+            Logger.debug('CTRL-C was pressed. Stopping server')
+
         except:
             Logger.exception(__file__ + ":" + str(sys.exc_info()))
-            self.stop()
 
-        Logger.debug("shutting down")
+        self.stop()
+
+        Logger.debug("shutting down network sockets")
         epoll.unregister(listener)
         epoll.close()
         sock.close()
+
+        if self.db:
+            Logger.debug("stopping database engine")
+            self.db.stop()
       
         Logger.debug("stopping manager") 
         self.manager.stop()
-        self.manager.join()
+
         Logger.debug("waiting for the cleanup thread to finish")
         self.expiration.stop()
-        self.expiration.join()
 
         Logger.info("ItemReservation server ended")

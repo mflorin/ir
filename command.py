@@ -71,8 +71,11 @@ class Command:
         if len(args[1:]) != cmdInfo['args']:
             Logger.error(cmd + " needs " + str(cmdInfo['args']) + " arguments. Only " + str(len(args[1:])) + " were given. Received command was `" + str(args) + "`")
             return Command.result(Command.RET_ERR_ARGS, cmdInfo['help'])
-         
-        return f(args[1:])
+        try: 
+            return f(args[1:])
+        except Exception as e:
+            Logger.critical(str(e))
+            return Command.result(Command.RET_ERR_GENERAL, str(e))
             
     """
     packs the result and returns it

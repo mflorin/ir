@@ -2,6 +2,9 @@
 Implements expiration of item reservation entries
 """
 
+import os
+import signal
+import sys
 import time
 import threading
 
@@ -17,9 +20,11 @@ class Expiration(threading.Thread):
     def __init__(self, interval, ttl):
         self.interval = interval
         self.ttl = ttl
-        Logger.info('cleanup_interval: %d' % (self.interval))
-        Logger.info('ttl: %d' % (self.ttl))
         self.running = True
+
+        # event object used for sleeping
+        self.event = threading.Event()
+
         super(Expiration, self).__init__()
 
     """
@@ -29,7 +34,6 @@ class Expiration(threading.Thread):
         
         while self.running:
             now = time.time()
-
             for sku in Product.productLocks:
                 if sku in Product.reserved:
                     Product.lock(sku)
@@ -44,7 +48,8 @@ class Expiration(threading.Thread):
                     del _expired
                     Product.unlock(sku)
 
-            time.sleep(self.interval)
+            self.event.wait(self.interval)
     
     def stop(self):
         self.running = False
+        self.event.set()

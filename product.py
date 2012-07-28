@@ -44,6 +44,30 @@ class Product:
                 yield [sku,Product.reserved[sku]]
                 Product.unlock(sku)
 
+    """
+    Prepare data to be written in the database
+    """
+    @staticmethod
+    def prepareDbData():
+        return {
+           'skus': Product.productLocks.keys(),
+           'reserved': dict(Product.reserved),
+           'stock': dict(Product.stock),
+           'totalReservations': dict(Product.totalReservations)
+        }
+
+    """
+    Interpret loaded db data and fill in product data
+    """
+    @staticmethod
+    def loadDbData(data):
+        for sku in data['skus']:
+            Product.productLocks[sku] = threading.RLock()
+        Product.reserved = data['reserved']
+        Product.stock = data['stock']
+        Product.totalReservations = data['totalReservations']
+        
+
     @staticmethod
     def lock(sku):
         if not sku in Product.productLocks:

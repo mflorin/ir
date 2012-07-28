@@ -16,7 +16,7 @@ class Manager(threading.Thread):
 
     def __init__(self, server, options):
 
-        threading.Thread.__init__(self)
+        super(Manager, self).__init__()
 
         # list of workers
         self.workers = []
@@ -182,6 +182,7 @@ class Manager(threading.Thread):
     def stop(self):
         self.running = False
         self.notifyJoin()
+        self.join()
 
 
     def workersCmd(self, args):
