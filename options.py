@@ -19,6 +19,7 @@ class Options(object):
         backlog = 0
         debug = False
         modules = ''
+        scale_down_interval = 60
         pass
 
     class logger(object):
@@ -69,6 +70,7 @@ class Options(object):
                 'workers': str(Options.general.workers),
                 'backlog': str(Options.general.backlog),
                 'modules': str(Options.general.modules),
+                'scale_down_interval': str(Options.general.scale_down_interval),
                 'log_level': str(Options.logger.log_level),
                 'log_file': str(Options.logger.log_file),
                 'ttl': str(Options.expiration.ttl),
@@ -85,6 +87,7 @@ class Options(object):
                 Options.general.workers = config.getint('general', 'workers')
                 Options.general.backlog = config.getint('general', 'backlog') 
                 Options.general.modules = config.get('general', 'modules') 
+                Options.general.scale_down_interval = config.getint('general', 'scale_down_interval') 
                 Options.logger.log_level = config.get('logger', 'log_level') 
                 Options.logger.log_file = config.get('logger', 'log_file')
                 Options.expiration.ttl = config.getint('expiration', 'ttl')

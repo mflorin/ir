@@ -24,18 +24,17 @@ class Manager(threading.Thread):
         # mutex for the list of workers
         self.workersLock = threading.RLock()
 
-        # condition variable indicating that a thread 
-        # finished and should be joined
-        self.workersCond = threading.Condition()
+        # condition variable
+        self.event = threading.Event()
 
         # flag indicating that we're still running
-        self.running = True
+        self.running = False
         
         # application options
         self.options = options 
 
-        # joinable threads queue
-        self.joinable = Queue.Queue()
+        # available idle threads
+        self.idleWorkers = Queue.Queue()
 
         # read buffer to collect data from sockets
         # and split it later by \n and feed it to workers
@@ -49,6 +48,60 @@ class Manager(threading.Thread):
         # server instance
         self.server = server
 
+    def idleWorkerPush(self, w):
+        self.idleWorkers.put(w)
+
+    def idleWorkerPop(self):
+        ret = None
+        if not self.idleWorkers.empty():
+            try:
+                ret = self.idleWorkers.get_nowait()
+            except:
+                Logger.exception()
+
+        if ret:
+            Logger.info('worker %d popped' % ret.ident)
+            self.idleWorkers.task_done()
+        return ret
+
+    """
+    pick a worker, either from the idle workers queue or
+    by creating one or by computing the worker with the
+    smallest job queue
+    """
+    def pickWorkerUnlocked(self):
+
+        # try to pick an idle worker
+        ret = self.idleWorkerPop()
+        if ret:
+            return ret
+
+        # try to start a new worker
+        if len(self.workers) < self.options.workers:
+            ret = None
+            try:
+                ret = self.createWorker()
+                ret.start()
+                return ret
+            except Exception as e:
+                Logger.exception()
+                if ret:
+                    self.removeWorkerUnlocked(ret)
+                    del ret
+                    ret = None
+
+        # try to pick the least busy worker
+        _min = -1
+        for w in self.workers:
+            # compute the worker with the smallest
+            # queue and add the job to it
+            _size = w.getQSize()
+            if (_size < _min or _min == -1):
+                ret = w
+                _min = _size
+
+        return ret
+
     """
     read bytes from the socket and try to split them
     into commands which will be feeded to the workers
@@ -59,6 +112,7 @@ class Manager(threading.Thread):
         sock = conn['sock']
         addr = conn['addr']
 
+        cmd = None
         while True:
             try:
                 cmd = sock.recv(1024)
@@ -99,97 +153,90 @@ class Manager(threading.Thread):
         job = {'sock': sock, 'addr': addr, 'commands': cmds}
 
         self.workersLock.acquire()
-        if len(self.workers) < self.options.workers:
-            w = self.createWorker()
-            w.addJob(job)
-            w.start()
-            processed = True
-        else:
-            for w in self.workers:
-                if (w.isAvailable()):
-                    Logger.debug('adding job')
-                    w.addJob(job)
-                    processed = True
-                    break
+
+        _served = False
+        # pick a worker to assign the job to
+        try:
+            w = self.pickWorkerUnlocked()
+            if w:
+                w.addJob(job)
+                _served = True
+        except:
+            Logger.exception()
+
+        if _served == False:
+            Logger.warn("Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped")
+
         self.workersLock.release()
 
-        if not processed:
-            logger.warn("Connection from " + addr[0] + ":" + str(addr[1]) + " was dropped")
-            return False
-        else:
-            return True
+        return True
 
         
     def createWorker(self):
         w = worker.Worker(self, self.options)
-        self.addWorker(w)
+        Logger.info('adding worker')
+        self.addWorkerUnlocked(w)
         return w
 
-    def addWorker(self, w):
+    def addWorkerUnlocked(self, w):
         self.workers.append(w)
 
-    def removeWorker(self, w):
-        # we're locking here because we don't
-        # want to end up using this worker in dispatch()
-        self.workersLock.acquire()
+    def removeWorkerUnlocked(self, w):
+        Logger.info('removing worker %d' % w.ident)
         self.workers.remove(w)
-        self.workersLock.release()
 
-    def notifyJoin(self, worker = None):
-        # notify so that run()
-        # can go on joining what's in the 
-        # joinable queue
-        self.workersCond.acquire()
-
-        if worker:
-            # it's essential to push the worker
-            # in the joinable queue AFTER acquiring
-            # the lock, otherwise we'll end up in
-            # a deadlock where the manager is
-            # fetching this fresh worker from the queue
-            # and gets blocked in join because the worker
-            # is holding the workersCond lock waiting
-            # for the manager to release it :)
-            self.joinable.put(worker)
-            self.removeWorker(worker)
-
-        self.workersCond.notify()
-        self.workersCond.release()
-
-    """ this method's main purpose is to join
-    worker threads from the joinable queue """
+    """ scale down method; this method's main purpose is to join
+    idle worker threads from time to time """
     def run(self):
         while self.running:
 
-            self.workersCond.acquire()
+            self.event.wait(self.options.scale_down_interval)
 
-            # wait for the signal
-            self.workersCond.wait()
+            self.workersLock.acquire()
+
+            Logger.debug('scaling down started')
             
-            try:
-                while not self.joinable.empty():
-                    try:
-                        w = self.joinable.get()
-                        w.join()
-                        self.joinable.task_done()
-                    except:
-                        Logger.exception()
-                        continue
-            except:
-                Logger.exception()
+            while not self.idleWorkers.empty():
+                i = self.idleWorkers.get()
+                i.stop()
+                Logger.info('removing %d' % i.ident)
+                self.removeWorkerUnlocked(i)
+                self.idleWorkers.task_done()
 
-            self.workersCond.release()
+            self.idleWorkers.join()
 
-        self.joinable.join()
+            Logger.debug('scaling down ended')
+
+            self.workersLock.release()
+
+            self.event.clear()
+
+        # shut down remaining workers, dropping
+        # unprocessed commands
+        self.shutdownWorkers()
+
+    def shutdownWorkers(self):
+        # we don't need to lock here since
+        # we know we're running unlocked
+        for w in self.workers:
+
+            # WARNING: unprocessed commands are dropped
+            w.emptyQueue()
+
+            w.stop()
+            self.removeWorkerUnlocked(w)
+
 
     def start(self):
         Logger.info('starging the workers manager')
+        self.running = True
         super(Manager, self).start()
+
 
     def stop(self):
         Logger.info('stopping the workers manager')
         self.running = False
-        self.notifyJoin()
+        self.event.set()
         self.join()
 
 

@@ -22,17 +22,20 @@ class Server:
         self.connections = {}
         self.modules = []
 
+        # initialize the epoll object
+        self.epoll = select.epoll()
+
         # workers manager
         self.manager = Manager(self, self.options)
         self.manager.start()
-
-        # expiration manager
-        self.expiration = Expiration(options.expiration)
-        self.expiration.start()
-        
+     
         # database manager
         self.db = Db(options.database)
         
+        # load the expiration manager after the db is loaded
+        self.expiration = Expiration(options.expiration)
+        self.expiration.start()
+
         # load external modules
         self.loadModules()
        
@@ -68,6 +71,14 @@ class Server:
         self.running = False
 
 
+    def closeConnection(self, fd):
+        self.epoll.unregister(fd)
+        addr = self.connections[fd]['addr']
+        Logger.info(addr[0] + ":" + str(addr[1]) + " left")
+        self.connections[fd]['sock'].close()
+        del self.connections[fd]
+
+
     def run(self):
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -78,14 +89,13 @@ class Server:
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         listener = sock.fileno()
-        epoll = select.epoll()
-        epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
+        self.epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
 
         Logger.info("ItemReservation server started")
 
         while self.running:
             try:
-                events = epoll.poll()
+                events = self.epoll.poll()
                 for fd, event in events:
 
                     if fd == listener:
@@ -93,7 +103,7 @@ class Server:
                         (clientsock, address) = sock.accept()
                         clientsock.setblocking(0)
                         fileno = clientsock.fileno()
-                        epoll.register(fileno, select.EPOLLIN)
+                        self.epoll.register(fileno, select.EPOLLIN)
                         self.connections[fileno] = {
                             'sock': clientsock, 
                             'addr': address
@@ -103,18 +113,13 @@ class Server:
                         if self.manager.dispatch(self.connections[fd]) != True:
                             # Client closed connection
                             try:
-                                self.connections[fd]['sock'].shutdown(socket.SHUT_RDWR)
-                                epoll.modify(fd, 0)
+                                self.closeConnection(fd)
                             except:
                                 pass
 
                     elif event & select.EPOLLHUP:
                         # socket shutdown
-                        epoll.unregister(fd)
-                        addr = self.connections[fd]['addr']
-                        Logger.info(addr[0] + ":" + str(addr[1]) + " left")
-                        self.connections[fd]['sock'].close()
-                        del self.connections[fd]
+                        self.closeConnection(fd)
 
             except KeyboardInterrupt:
                 Logger.debug('CTRL-C was pressed. Stopping server')
@@ -132,8 +137,8 @@ class Server:
         self.stop()
 
         Logger.debug("shutting down network sockets")
-        epoll.unregister(listener)
-        epoll.close()
+        self.epoll.unregister(listener)
+        self.epoll.close()
         sock.close()
 
         self.db.stop()
