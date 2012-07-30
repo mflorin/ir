@@ -114,7 +114,7 @@ class Options(object):
     @staticmethod
     def reload():
         Options.load()
-        Event.dispatch('reload')
+        Event.dispatch('reload', None)
 
     @staticmethod
     def reloadCfgCmd(args):

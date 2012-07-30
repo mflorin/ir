@@ -60,7 +60,6 @@ class Manager(threading.Thread):
                 Logger.exception()
 
         if ret:
-            Logger.info('worker %d popped' % ret.ident)
             self.idleWorkers.task_done()
         return ret
 
@@ -142,11 +141,8 @@ class Manager(threading.Thread):
         cmds = self.readBuffer[fd].split(Command.SEPARATOR)
         
         # retain the last partial command if any
-        lastcmd = cmds[len(cmds) - 1].strip()
-        if len(lastcmd) > 0:
-            self.readBuffer[fd] = lastcmd
-        else:
-            self.readBuffer[fd] = ""
+        lastcmd = cmds[len(cmds) - 1]
+        self.readBuffer[fd] = lastcmd
 
         del cmds[len(cmds) - 1]
 
@@ -174,7 +170,6 @@ class Manager(threading.Thread):
         
     def createWorker(self):
         w = worker.Worker(self, self.options)
-        Logger.info('adding worker')
         self.addWorkerUnlocked(w)
         return w
 
@@ -182,7 +177,6 @@ class Manager(threading.Thread):
         self.workers.append(w)
 
     def removeWorkerUnlocked(self, w):
-        Logger.info('removing worker %d' % w.ident)
         self.workers.remove(w)
 
     """ scale down method; this method's main purpose is to join
@@ -199,7 +193,6 @@ class Manager(threading.Thread):
             while not self.idleWorkers.empty():
                 i = self.idleWorkers.get()
                 i.stop()
-                Logger.info('removing %d' % i.ident)
                 self.removeWorkerUnlocked(i)
                 self.idleWorkers.task_done()
 

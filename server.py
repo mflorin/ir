@@ -8,7 +8,6 @@ import importlib
 import worker
 from manager import Manager
 from logger import Logger
-from expiration import Expiration
 from db import Db
 from command import Command
 from event import Event
@@ -32,10 +31,6 @@ class Server:
         # database manager
         self.db = Db(options.database)
         
-        # load the expiration manager after the db is loaded
-        self.expiration = Expiration(options.expiration)
-        self.expiration.start()
-
         # load external modules
         self.loadModules()
        
@@ -134,7 +129,10 @@ class Server:
                     Logger.exception(str(e))
 
 
-        self.stop()
+#        self.stop()
+        
+        # dispatching shutdown to all modules
+        Event.dispatch('shutdown')
 
         Logger.debug("shutting down network sockets")
         self.epoll.unregister(listener)
@@ -144,8 +142,6 @@ class Server:
         self.db.stop()
       
         self.manager.stop()
-
-        self.expiration.stop()
 
         Logger.info("ItemReservation server ended")
 

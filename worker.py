@@ -75,7 +75,6 @@ class Worker(threading.Thread):
                 # end up adding ourselves to the queue
                 # right after we were stopped by the
                 # scale_down thread
-                Logger.info('worker %d pushed' % self.ident)
                 self.manager.idleWorkerPush(self)
             self.event.clear()
 
@@ -83,11 +82,9 @@ class Worker(threading.Thread):
         if not self.running:
             self.running = True
             super(Worker, self).start()
-            Logger.info('worker %d started' % self.ident)
 
     def stop(self):
         if self.running:
-            Logger.info('stopping worker %d' % self.ident)
             self.running = False
             self.event.set()
             self.join()

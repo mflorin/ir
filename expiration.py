@@ -11,6 +11,7 @@ import threading
 from logger import Logger
 from product import Product
 from event import Event
+from options import Options
 
 class Expiration(threading.Thread):
 
@@ -28,6 +29,7 @@ class Expiration(threading.Thread):
         self.event = threading.Event()
 
         Event.register('reload', self.reloadEvent)
+        Event.register('shutdown', self.shutdownEvent)
 
         super(Expiration, self).__init__()
 
@@ -38,20 +40,17 @@ class Expiration(threading.Thread):
         
         while self.running:
             now = time.time()
-            for sku in Product.productLocks:
-                if sku in Product.reserved:
-                    Product.lock(sku)
-                    _expired = []
-                    for clid in Product.reserved[sku]:
-                        if now - Product.reserved[sku][clid][1] > self.options.ttl:
-                            Logger.info("reservation for product " + sku + " and client " + str(clid) + " expired")
-                            _expired.append(clid)
-                    for clid in _expired:
-                        Product.totalReservations[sku] -= Product.reserved[sku][clid][0]
-                        del Product.reserved[sku][clid]
-                    del _expired
-                    Product.unlock(sku)
+            for [sku, _pdata] in Product.getProducts():
 
+                _expired = []
+                for [clid, _rdata] in Product.getReservations(sku):
+                    if now - Product.reservationGetTimeUnlocked(sku, clid) > self.options.ttl:
+                        Logger.info("reservation for product " + sku + " and client " + str(clid) + " expired")
+                        _expired.append(clid)
+                for clid in _expired:
+                    Product.totalReservationsDecUnlocked(sku, Product.reservationGetQtyUnlocked(sku, clid))
+                    Product.reservationDelUnlocked(sku, clid)
+                del _expired
             self.event.wait(self.options.cleanup_interval)
 
     def start(self):
@@ -76,3 +75,11 @@ class Expiration(threading.Thread):
         super(Expiration, self).__init__()
         self.start()
 
+    def shutdownEvent(self, *args):
+        self.stop()
+
+
+
+# initialize the expiration module
+expiration = Expiration(Options.expiration)
+expiration.start()

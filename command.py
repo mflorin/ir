@@ -1,5 +1,4 @@
 import json
-from product import Product
 from logger import Logger
 
 class Command:
@@ -7,17 +6,7 @@ class Command:
     # character ending a command
     SEPARATOR = "\n"
 
-    commands = {
-        'productAdd': {'args':2, 'help':'productAdd sku stock'},
-        'productInfo': {'args':1, 'help':'productInfo sku'},
-        'reservationAdd': {'args':3, 'help':'reservationAdd client_id sku qty'},
-        'reservationDel': {'args':3, 'help':'reservationDel client_id sku qty'},
-        'reservationSet': {'args':3, 'help':'reservationSet client_id sku qty'},
-        'stockSet': {'args':2, 'help':'stockSet sku stock'},
-        'stockDec': {'args':2, 'help':'stockDec sku qty'},
-        'stockGet': {'args':1, 'help':'stockGet sku'},
-        'status': {'args':0, 'help':'status'}
-    }
+    commands = {}
 
     returnCodes = {
         0: 'success',
@@ -61,8 +50,7 @@ class Command:
 
         if 'handler' in Command.commands[cmd]:
             f = Command.commands[cmd]['handler']
-        else:       
-            f = getattr(Command, cmd + 'Cmd', None)
+
         if not f or not callable(f):
             return Command.result(Command.RET_ERR_CMD)
 
@@ -98,124 +86,3 @@ class Command:
         return json.dumps(ret)
        
 
-    """ ---------------------- COMMANDS ---------------------- """
-
-    """
-    productAdd command
-    """
-    @staticmethod
-    def productAddCmd(args):
-
-        sku = args[0]
-        stock = int(args[1])
-
-        if Product.productAdd(sku, stock):
-            Logger.debug("product %s with stock %d was added" % (sku, stock))
-            return Command.result(Command.RET_SUCCESS)
-        else:
-            return Command.result(Command.RET_ERR_GENERAL)
-
-
-    """
-    set the stock
-    """
-    @staticmethod
-    def stockSetCmd(args):
-        
-        sku = args[0]
-        qty = int(args[1])
-
-        if Product.stockSet(sku, qty):
-            return Command.result(Command.RET_SUCCESS)
-        else:
-            return Command.result(Command.RET_ERR_GENERAL)
-
-    """
-    get the stock
-    """
-    @staticmethod
-    def stockGetCmd(args):
-
-        stock = Product.stockGet(args[0])
-        if not stock:
-            return Command.result(Command.RET_ERR_GENERAL, 'product not found')
-        else:
-            return Command.result(Command.RET_SUCCESS, stock)
-
-    """
-    decrease the stock
-    """
-    @staticmethod
-    def stockDecCmd(args):
-
-        sku = args[0]
-        qty = int(args[1])
-
-        ret = Product.stockDec(sku, qty)
-        if ret > -1:
-            return Command.result(Command.RET_SUCCESS, {'stock': ret})
-        else:
-            return Command.result(Command.RET_ERR_GENERAL)
-
-    """
-    reservationAdd command
-    """
-    @staticmethod
-    def reservationAddCmd(args):
-
-        clid = args[0]
-        sku = args[1]
-        qty = int(args[2])
-
-        ret = Product.reservationAdd(sku, clid, qty)
-        if ret > 0:
-            return Command.result(Command.RET_ERR_GENERAL, 'not enough stock (stock: ' + str(ret) + ')')
-        else:
-            return Command.result(Command.RET_SUCCESS)
-
-    """
-    reservationDel command
-    """
-    @staticmethod
-    def reservationDelCmd(args):
-       clid = args[0]
-       sku = args[1]
-       qty = int(args[2])
-       Product.reservationDel(sku, clid, qty)
-       return Command.result(Command.RET_SUCCESS)
-
-    """
-    reservationSet command
-    """
-    @staticmethod
-    def reservationSetCmd(args):
-       clid = args[0]
-       sku = args[1]
-       qty = int(args[2])
-       Product.reservationSet(sku, clid, qty)
-       ret = Product.reservationSet(sku, clid, qty)
-       if ret > 0:
-           return Command.result(Command.RET_ERR_GENERAL, 'not enough stock (stock: ' + str(ret) + ')')
-       else:
-           return Command.result(Command.RET_SUCCESS)
-
-    """
-    get info on a product
-    """
-    @staticmethod
-    def productInfoCmd(args):
-        ret = Product.info(args[0])
-        if not ret:
-            return Command.result(Command.RET_ERR_GENERAL, 'product not found')
-        else:
-            return Command.result(Command.RET_SUCCESS, ret)
-
-    """
-    get system status
-    """
-    @staticmethod
-    def statusCmd(args):
-        ret = {
-            'products': len(Product.productLocks),
-        }
-        return Command.result(Command.RET_SUCCESS, ret)

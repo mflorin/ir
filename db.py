@@ -103,9 +103,19 @@ class Db(threading.Thread):
     @return False on error
     """
     def save(self):
+
+        data = {}
+
+        # collect data from all modules
+        Event.dispatch('db.save', data)
+        
+        # save data to the database
         f = open(self.options.file_name, 'wb')
-        cPickle.dump(Product.prepareDbData(), f, -1)
+        cPickle.dump(data, f, -1)
         f.close()
+
+        del data
+
 
     """
     Load product data from the db
@@ -115,8 +125,10 @@ class Db(threading.Thread):
     """
     def load(self):
         f = open(self.options.file_name, 'rb')
-        Product.loadDbData(cPickle.load(f))
+        data = cPickle.load(f)
         f.close()
+        Event.dispatch('db.load', data)
+        del data
     
     
     """
