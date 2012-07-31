@@ -11,39 +11,60 @@ from logger import Logger
 from db import Db
 from command import Command
 from event import Event
+from config import Config
 
 class Server:
 
-    def __init__(self, options):
+    # default configuration values
+    DEFAULTS = {
+        'file': '/etc/motherbee/motherbee.conf',
+        'host': '0.0.0.0',
+        'port': 2000,
+        'backlog': 0,
+    } 
 
-        self.options = options.general
+    def __init__(self):
+
+        self.config = {}
+
+        # load configuration options
+        self.loadConfig()
+
         self.running = True
         self.connections = {}
         self.modules = []
+
+        self.loadModules()
 
         # initialize the epoll object
         self.epoll = select.epoll()
 
         # workers manager
-        self.manager = Manager(self, self.options)
+        self.manager = Manager(self)
         self.manager.start()
      
         # database manager
-        self.db = Db(options.database)
+        self.db = Db()
         
-        # load external modules
-        self.loadModules()
-       
-        Event.register('reload', self.reloadEvent)
+        Event.register('core.reload', self.reloadEvent)
         
-        Command.register(self.shutdown, 'shutdown', 0, 'shutdown')
+        Command.register(self.shutdownCmd, 'core.shutdown', 0, 'core.shutdown')
+
+    def loadConfig(self):
+        self.config['modules'] = Config.get('general', 'modules')
+        self.config['host'] = Config.get('general', 'host', Server.DEFAULTS['host'])
+        self.config['port'] = Config.getint('general', 'port', Server.DEFAULTS['port'])
+        self.config['backlog'] = Config.getint('general', 'backlog', Server.DEFAULTS['backlog']) 
+        if self.config['backlog'] <= 0:
+            self.config['backlog'] = socket.SOMAXCONN
+ 
 
     def reloadEvent(self, *args):
-        self.loadModules()
+        self.loadConfig()
 
     def loadModules(self):
         # load external modules
-        for m in self.options.modules.split(','):
+        for m in self.config['modules'].split(','):
             m = m.strip()
             if len(m) == 0:
                 continue
@@ -58,7 +79,7 @@ class Server:
                 Logger.exception(str(e))
 
 
-    def shutdown(self, args):
+    def shutdownCmd(self, args):
         self.stop()
         return Command.result(Command.RET_SUCCESS)
 
@@ -78,8 +99,8 @@ class Server:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((self.options.host, self.options.port))
-        sock.listen(self.options.backlog)
+        sock.bind((self.config['host'], self.config['port']))
+        sock.listen(self.config['backlog'])
         sock.setblocking(0)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -132,7 +153,7 @@ class Server:
 #        self.stop()
         
         # dispatching shutdown to all modules
-        Event.dispatch('shutdown')
+        Event.dispatch('core.shutdown')
 
         Logger.debug("shutting down network sockets")
         self.epoll.unregister(listener)

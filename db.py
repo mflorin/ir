@@ -8,28 +8,37 @@ import threading
 import cPickle
 import time
 
+from config import Config
 from logger import Logger
 from command import Command
 from product import Product
 from event import Event
 
 class Db(threading.Thread):
-    
-    def __init__(self, options):
+
+    DEFAULTS = {
+        'persistence': False,
+        'file': '/var/lib/motherbee/motherbee.db',
+        'autosave_interval': 60
+    }
+  
+    def __init__(self):
 
         super(Db, self).__init__()
 
-        # application options
-        self.options = options
+        # config options
+        self.config = {}
+
+        self.loadConfig()
         
         self.running = False
 
         # initialize the event object used for sleeping
         self.event = threading.Event()
 
-        if self.options.persistence and os.path.exists(self.options.file_name):
+        if self.config['persistence'] and os.path.exists(self.config['file_name']):
             try:
-                Logger.info('loading database from %s' % self.options.file_name)
+                Logger.info('loading database from %s' % self.config['file_name'])
                 self.load()
             except Exception as e:
                 Logger.critical(str(e))
@@ -37,10 +46,16 @@ class Db(threading.Thread):
         self.setup()
 
         # register our 'save' commands
-        Command.register(self.saveCmd, 'save', 0, 'save')
+        Command.register(self.saveCmd, 'db.save', 0, 'db.save')
         
         # treat reloadCfg
-        Event.register('reload', self.reloadEvent)
+        Event.register('core.reload', self.reloadEvent)
+
+    def loadConfig(self):
+        self.config['persistence'] = Config.getboolean('database', 'persistence', Db.DEFAULTS['persistence']) 
+        self.config['file_name'] = Config.get('database', 'file', Db.DEFAULTS['file'])
+        self.config['autosave_interval'] = Config.getint('database', 'autosave_interval', Db.DEFAULTS['autosave_interval'])
+  
         
     """
     start the thread
@@ -56,9 +71,9 @@ class Db(threading.Thread):
     stop the thread
     """
     def stop(self):
-        if self.options.persistence:
+        if self.config['persistence']:
             # save when stopping
-            Logger.info('saving database to %s' % self.options.file_name)
+            Logger.info('saving database to %s' % self.config['file_name'])
             self.save()
         if self.running:
             Logger.info('stopping the database manager')
@@ -71,8 +86,8 @@ class Db(threading.Thread):
 
 
     def setup(self):
-        if self.options.persistence == True and len(self.options.file_name) > 0:
-            if self.options.autosave_interval > 0:
+        if self.config['persistence'] == True and len(self.config['file_name']) > 0:
+            if self.config['autosave_interval'] > 0:
                 self.start()
 
 
@@ -80,6 +95,7 @@ class Db(threading.Thread):
         self.stop()
         # we need this to start the thread again
         super(Db, self).__init__()
+        self.loadConfig()
         self.setup()
 
 
@@ -88,12 +104,12 @@ class Db(threading.Thread):
     """
     def run(self):
         while self.running:
-            self.event.wait(self.options.autosave_interval)
+            self.event.wait(self.config['autosave_interval'])
             try:
-                Logger.info('saving database to %s' % self.options.file_name)
+                Logger.info('saving database to %s' % self.config['file_name'])
                 self.save()
             except Exception as e:
-                Logger.error("an error occured while trying to save the database to %s" % self.options.file_name)
+                Logger.error("an error occured while trying to save the database to %s" % self.config['file_name'])
                 Logger.error(str(e))
 
     """
@@ -110,7 +126,7 @@ class Db(threading.Thread):
         Event.dispatch('db.save', data)
         
         # save data to the database
-        f = open(self.options.file_name, 'wb')
+        f = open(self.config['file_name'], 'wb')
         cPickle.dump(data, f, -1)
         f.close()
 
@@ -124,7 +140,7 @@ class Db(threading.Thread):
     @return False on error
     """
     def load(self):
-        f = open(self.options.file_name, 'rb')
+        f = open(self.config['file_name'], 'rb')
         data = cPickle.load(f)
         f.close()
         Event.dispatch('db.load', data)
@@ -135,7 +151,7 @@ class Db(threading.Thread):
     'save' command
     """
     def saveCmd(self, *args):
-        if self.options.persistence:
+        if self.config['persistence']:
             self.save()
             return Command.result(Command.RET_SUCCESS)
         else:

@@ -11,30 +11,38 @@ import threading
 from logger import Logger
 from product import Product
 from event import Event
-from options import Options
+from config import Config
 
 class Expiration(threading.Thread):
+
+    # default configuration values
+    DEFAULTS = {
+        'ttl': 60,
+        'cleanup_interval': 1
+    }
 
     """
     Module startup
     """
-    def __init__(self, options):
+    def __init__(self):
 
         self.running = False
-
-        # application options
-        self.options = {}
-
-        self.options['ttl'] = Options.getint('expiration', 'ttl')
-        self.options['cleanup_interval'] = Options.getint('expiration', 'cleanup_interval')
+        
+        # configuration
+        self.config = {}
+        self.loadConfig()
 
         # event object used for sleeping
         self.event = threading.Event()
 
-        Event.register('reload', self.reloadEvent)
-        Event.register('shutdown', self.shutdownEvent)
+        Event.register('core.reload', self.reloadEvent)
+        Event.register('core.shutdown', self.shutdownEvent)
 
         super(Expiration, self).__init__()
+
+    def loadConfig(self):
+        self.config['ttl'] = Config.getint('expiration', 'ttl', Expiration.DEFAULTS['ttl'])
+        self.config['cleanup_interval'] = Config.getint('expiration', 'cleanup_interval', Expiration.DEFAULTS['cleanup_interval'])
 
     """
     Cleanup thread
@@ -47,14 +55,14 @@ class Expiration(threading.Thread):
 
                 _expired = []
                 for [clid, _rdata] in Product.getReservations(sku):
-                    if now - Product.reservationGetTimeUnlocked(sku, clid) > self.options.ttl:
+                    if now - Product.reservationGetTimeUnlocked(sku, clid) > self.config['ttl']:
                         Logger.info("reservation for product " + sku + " and client " + str(clid) + " expired")
                         _expired.append(clid)
                 for clid in _expired:
                     Product.totalReservationsDecUnlocked(sku, Product.reservationGetQtyUnlocked(sku, clid))
                     Product.reservationDelUnlocked(sku, clid)
                 del _expired
-            self.event.wait(self.options.cleanup_interval)
+            self.event.wait(self.config['cleanup_interval'])
 
     def start(self):
         if not self.running:
@@ -76,6 +84,7 @@ class Expiration(threading.Thread):
         self.stop()
         # we need this to start the thread again
         super(Expiration, self).__init__()
+        self.loadConfig()
         self.start()
 
     def shutdownEvent(self, *args):
@@ -84,5 +93,5 @@ class Expiration(threading.Thread):
 
 
 # initialize the expiration module
-expiration = Expiration(Options.expiration)
+expiration = Expiration()
 expiration.start()

@@ -8,13 +8,21 @@ import sys
 
 from command import Command
 from logger import Logger
+from config import Config
+from event import Event
 
 class Manager(threading.Thread):
 
     # 1M buffer size
     MAX_BUFFER_SIZE = 1048576
 
-    def __init__(self, server, options):
+    # default configuration values
+    DEFAULTS = {
+        'workers': 500,
+        'scale_down_interval': 60
+    }
+
+    def __init__(self, server):
 
         super(Manager, self).__init__()
 
@@ -30,8 +38,9 @@ class Manager(threading.Thread):
         # flag indicating that we're still running
         self.running = False
         
-        # application options
-        self.options = options 
+        # manager config
+        self.config = {}
+        self.loadConfig()
 
         # available idle threads
         self.idleWorkers = Queue.Queue()
@@ -43,10 +52,22 @@ class Manager(threading.Thread):
         self.readBuffer = {}
    
         # register commands
-        Command.register(self.workersCmd, 'workers', 0)
-        
+        Command.register(self.workersCmd, 'core.workers', 0)
+
+        # register for the core.reload event
+        Event.register('core.reload', self.reloadEvent)
+                
         # server instance
         self.server = server
+
+
+    def loadConfig(self):
+        self.config['workers'] = Config.getint('general', 'workers', Manager.DEFAULTS['workers'])
+        self.config['scale_down_interval'] = Config.getint('general', 'scale_down_interval', Manager.DEFAULTS['scale_down_interval'])
+       
+
+    def reloadEvent(self):
+        self.loadConfig()
 
     def idleWorkerPush(self, w):
         self.idleWorkers.put(w)
@@ -76,7 +97,7 @@ class Manager(threading.Thread):
             return ret
 
         # try to start a new worker
-        if len(self.workers) < self.options.workers:
+        if len(self.workers) < self.config['workers']:
             ret = None
             try:
                 ret = self.createWorker()
@@ -169,7 +190,7 @@ class Manager(threading.Thread):
 
         
     def createWorker(self):
-        w = worker.Worker(self, self.options)
+        w = worker.Worker(self)
         self.addWorkerUnlocked(w)
         return w
 
@@ -184,7 +205,7 @@ class Manager(threading.Thread):
     def run(self):
         while self.running:
 
-            self.event.wait(self.options.scale_down_interval)
+            self.event.wait(self.config['scale_down_interval'])
 
             self.workersLock.acquire()
 
@@ -234,5 +255,5 @@ class Manager(threading.Thread):
 
 
     def workersCmd(self, args):
-        return Command.result(Command.RET_SUCCESS, {'active': len(self.workers), 'max': self.options.workers})
+        return Command.result(Command.RET_SUCCESS, {'active': len(self.workers), 'max': self.config['workers']})
 

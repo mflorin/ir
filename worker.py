@@ -9,13 +9,12 @@ from logger import Logger
 
 class Worker(threading.Thread):
 
-    def __init__(self, manager, options):
+    def __init__(self, manager):
         super(Worker, self).__init__()
         self.event = threading.Event()
         self.running = False
         self.daemon = True
         self.manager = manager
-        self.options = options
         self.queue = Queue.Queue()
 
     def addJob(self, job):

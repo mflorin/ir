@@ -3,38 +3,88 @@ import traceback
 import logging
 
 from event import Event
+import config
 
 class Logger:
-    # setting up the logger
-    logger = logging.getLogger('ir')
-    formatter = logging.Formatter('[%(asctime)s](%(levelname)s) %(message)s')
-    options = None
+
+    # logging object
+    logger = None
+     
+    # logger options
+    config = {}
+
+    # file handler
     fh = None
 
+    # console handler
+    ch = None
+
+    # logger default configuration values
+    DEFAULTS = {
+        'log_level': 'info',
+        'log_file': '/var/log/motherbee/motherbee.log',
+        'format': '[%(asctime)s](%(levelname)s) %(message)s'
+    }
+
+    # used when parsing the log level from the
+    # configuration file into a logging module level
+    LOG_LEVELS = {
+        'debug': logging.DEBUG,
+        'info': logging.INFO,
+        'warning': logging.WARN,
+        'error': logging.ERROR,
+        'critical': logging.CRITICAL
+    }
+
     @staticmethod
-    def init(options):
-        Logger.options = options
+    def init():
+        Logger.logger = logging.getLogger(config.Config.APP_NAME)
         Logger.setup()
-        Event.register('reload', Logger.reload)
+        Event.register('core.reload', Logger.reloadEvent)
+
+    @staticmethod
+    def loadConfig():
+        Logger.config['log_level'] = config.Config.get('logger', 'log_level', Logger.DEFAULTS['log_level'])
+        Logger.config['log_file'] = config.Config.get('logger', 'log_file', Logger.DEFAULTS['log_file'])
+        Logger.config['format'] = config.Config.get('logger', 'format', Logger.DEFAULTS['format'])
+        if Logger.config['log_level'] in Logger.LOG_LEVELS:
+            Logger.config['log_level'] = Logger.LOG_LEVELS[Logger.config['log_level']]
+        else:
+            print 'Invalid log level `' + Logger.config['log_level'] + '`'
+            print 'Falling back to log level ' + Logger.DEFAULTS['log_level']
+            Logger.config['log_level'] = Logger.LOG_LEVELS[Logger.DEFAULTS['log_level']]
+
 
     @staticmethod
     def setup():
+        Logger.loadConfig()
         if Logger.fh:
             Logger.logger.removeHandler(Logger.fh)
+            del Logger.fh
+            Logger.fh = None
 
-        Logger.logger.setLevel(Logger.options.log_level)
-        Logger.fh = logging.FileHandler(Logger.options.log_file)
-        Logger.fh.setLevel(Logger.options.log_level)
-        Logger.fh.setFormatter(Logger.formatter)
+        if Logger.ch:
+            Logger.logger.removeHandler(Logger.ch)
+            del Logger.ch
+            Logger.ch = None
+
+        Logger.logger.setLevel(Logger.config['log_level'])
+        Logger.fh = logging.FileHandler(Logger.config['log_file'])
+        Logger.fh.setLevel(Logger.config['log_level'])
+        Logger.fh.setFormatter(logging.Formatter(Logger.config['format']))
         Logger.logger.addHandler(Logger.fh)
 
-    @staticmethod
-    def reload(*args):
-        Logger.setup()
+        if config.Config.general.debug:
+            # add console logging
+            Logger.ch = logging.StreamHandler()
+            Logger.ch.setLevel(Logger.config['log_level'])
+            Logger.ch.setFormatter(logging.Formatter(Logger.config['format']))
+            Logger.logger.addHandler(Logger.ch)
+     
 
     @staticmethod
-    def getFormatter():
-        return Logger.formatter
+    def reloadEvent(*args):
+        Logger.setup()
 
     @staticmethod
     def debug(*args):
