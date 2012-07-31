@@ -100,5 +100,4 @@ class ExpModule:
         expiration = Expiration()
         expiration.start()
 
-
-Module.register('expiration', ExpModule)
+Module.register('reservation expiration', ExpModule, ['item reservation'])

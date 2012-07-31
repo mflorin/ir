@@ -432,6 +432,6 @@ class Product:
 
 
 # initialize the product module
-Module.register('product', Product)
+Module.register('item reservation', Product)
 
 

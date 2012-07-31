@@ -20,7 +20,7 @@ class Module:
     config = {}
 
     # loaded modules
-    # name -> loaded: 1/0
+    # name -> started: True/False
     #      -> object: object
     modules = {}
     
@@ -48,7 +48,7 @@ class Module:
         Module.startAllModules()
 
     @staticmethod
-    def register(name, obj):
+    def register(name, obj, deps = None):
         if name in Module.modules:
             Logger.warn('module %s already registered', name)
         else:
@@ -57,7 +57,8 @@ class Module:
             else:
                 Module.modules[name] = {
                     'object': obj,
-                    'started': False
+                    'started': False,
+                    'deps': deps
                 }
 
     @staticmethod
@@ -70,11 +71,10 @@ class Module:
             if m in Module.loaded_files:
                 continue
             try:
-                Logger.debug('loading module ' + m)
                 importlib.import_module(m)
                 Module.loaded_files.append(m)
             except Exception as e:
-                Logger.error('error while loading module ' + m)
+                Logger.error('error while loading module file `%s\'' % m)
                 Logger.exception(str(e))
 
     @staticmethod
@@ -83,11 +83,29 @@ class Module:
             Module.startModule(m)
 
     @staticmethod
-    def startModule(m):
-        if Module.modules[m]['started'] == False:
+    def startModule(name):
+        m = Module.modules[name]
+        if m['started'] == False:
             try:
-                Module.modules[m]['object'].init()
-                Module.modules[m]['started'] = True
+                # we're flagging it here to avoid infinite
+                # dependency loops; we have to make sure we
+                # set it to false on the except: branch
+                m['started'] = True
+
+                # solve dependencies
+                if m['deps']:
+                    for d in m['deps']:
+                        if d in Module.modules:
+                            if Module.modules[d]['started'] == False:
+                                Module.startModule(d)
+                        else:
+                            Logger.error('`%s` is needed by `%s`' % (d, name))
+                            raise Exception('dependency `%s\' not found' % d)
+                
+                # start the module
+                Logger.info('starting the `%s\' module' % name)
+                m['object'].init()
             except Exception as e:
-                Logger.error('error while starting module %s', m)
+                m['started'] = False
+                Logger.error('error while starting module `%s\'' % name)
                 Logger.exception(str(e))

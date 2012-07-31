@@ -209,8 +209,6 @@ class Manager(threading.Thread):
 
             self.workersLock.acquire()
 
-            Logger.debug('scaling down started')
-            
             while not self.idleWorkers.empty():
                 i = self.idleWorkers.get()
                 i.stop()
@@ -218,8 +216,6 @@ class Manager(threading.Thread):
                 self.idleWorkers.task_done()
 
             self.idleWorkers.join()
-
-            Logger.debug('scaling down ended')
 
             self.workersLock.release()
 
@@ -242,7 +238,7 @@ class Manager(threading.Thread):
 
 
     def start(self):
-        Logger.info('starging the workers manager')
+        Logger.info('starting the workers manager')
         self.running = True
         super(Manager, self).start()
 

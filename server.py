@@ -49,7 +49,6 @@ class Server:
 
     def loadConfig(self):
         self.config['server_name'] = Config.get('general', 'server_name', Server.DEFAULTS['server_name'])
-        self.config['modules'] = Config.get('general', 'modules')
         self.config['host'] = Config.get('general', 'host', Server.DEFAULTS['host'])
         self.config['port'] = Config.getint('general', 'port', Server.DEFAULTS['port'])
         self.config['backlog'] = Config.getint('general', 'backlog', Server.DEFAULTS['backlog']) 

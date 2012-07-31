@@ -11,7 +11,6 @@ import time
 from config import Config
 from logger import Logger
 from command import Command
-from product import Product
 from event import Event
 
 class Db(threading.Thread):
