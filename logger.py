@@ -108,9 +108,11 @@ class Logger:
 
     @staticmethod
     def exception(*args):
-        Logger.warn(traceback.format_exc())
         if args and len(args) > 0:
             Logger.warn(args[0])
+        else:
+            Logger.warn(str(sys.exc_info()[1]))
+            Logger.warn('stack trace: ' + str(traceback.format_stack()))
 
     @staticmethod
     def marker():

@@ -12,6 +12,7 @@ from config import Config
 from logger import Logger
 from command import Command
 from event import Event
+from module import Module
 
 class Db(threading.Thread):
 
@@ -24,6 +25,12 @@ class Db(threading.Thread):
     def __init__(self):
 
         super(Db, self).__init__()
+
+
+    """
+    This is run by the modules manager
+    """
+    def init(self):
 
         # config options
         self.config = {}
@@ -47,8 +54,9 @@ class Db(threading.Thread):
         # register our 'save' commands
         Command.register(self.saveCmd, 'db.save', 0, 'db.save')
         
-        # treat reloadCfg
+        # treat events
         Event.register('core.reload', self.reloadEvent)
+        Event.register('core.shutdown', self.shutdownEvent)
 
     def loadConfig(self):
         self.config['persistence'] = Config.getboolean('database', 'persistence', Db.DEFAULTS['persistence']) 
@@ -97,6 +105,9 @@ class Db(threading.Thread):
         self.loadConfig()
         self.setup()
 
+
+    def shutdownEvent(self, *args):
+        self.stop()
 
     """
     periodic saves thread
@@ -157,4 +168,4 @@ class Db(threading.Thread):
             return Command.result(Command.RET_ERR_GENERAL, 'database persistence is disabled')
 
 
-       
+Module.register('db', Db()) 

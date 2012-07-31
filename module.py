@@ -8,6 +8,7 @@ import importlib
 from logger import Logger
 from config import Config
 from event import Event
+from exception import *
 
 class Module:
     
@@ -53,7 +54,7 @@ class Module:
             Logger.warn('module %s already registered', name)
         else:
             if not hasattr(obj, 'init'):
-                Logger.warn('Could not register module %. The provided object doesn\'t have an init() method')
+                Logger.error('Could not register module `%s\'. The provided object doesn\'t have an init() method' % name)
             else:
                 Module.modules[name] = {
                     'object': obj,
@@ -100,12 +101,17 @@ class Module:
                                 Module.startModule(d)
                         else:
                             Logger.error('`%s` is needed by `%s`' % (d, name))
-                            raise Exception('dependency `%s\' not found' % d)
+                            raise MotherBeeException('dependency `%s\' not found' % d)
                 
                 # start the module
                 Logger.info('starting the `%s\' module' % name)
                 m['object'].init()
+
+            except MotherBeeException as e:
+                m['started'] = False
+                Logger.error('error while starting module `%s\'' % name)
+
             except Exception as e:
                 m['started'] = False
                 Logger.error('error while starting module `%s\'' % name)
-                Logger.exception(str(e))
+                Logger.exception()

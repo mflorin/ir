@@ -7,7 +7,6 @@ import select
 import worker
 from manager import Manager
 from logger import Logger
-from db import Db
 from command import Command
 from event import Event
 from config import Config
@@ -40,9 +39,6 @@ class Server:
         self.manager = Manager(self)
         self.manager.start()
      
-        # database manager
-        self.db = Db()
-        
         Event.register('core.reload', self.reloadEvent)
         
         Command.register(self.shutdownCmd, 'core.shutdown', 0, 'core.shutdown')
@@ -139,8 +135,6 @@ class Server:
         self.epoll.close()
         sock.close()
 
-        self.db.stop()
-      
         self.manager.stop()
 
         Logger.info("%s server ended" % self.config['server_name'])
