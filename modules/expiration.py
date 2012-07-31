@@ -12,6 +12,7 @@ from logger import Logger
 from product import Product
 from event import Event
 from config import Config
+from module import Module
 
 class Expiration(threading.Thread):
 
@@ -91,7 +92,13 @@ class Expiration(threading.Thread):
         self.stop()
 
 
+class ExpModule:
 
-# initialize the expiration module
-expiration = Expiration()
-expiration.start()
+    @staticmethod
+    def init():
+        # initialize the expiration module
+        expiration = Expiration()
+        expiration.start()
+
+
+Module.register('expiration', ExpModule)

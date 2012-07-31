@@ -10,14 +10,14 @@ import argparse
 import config
 from server import Server
 from logger import Logger
-from db import Db
+from module import Module
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        prog='MotherBee'
+        prog=config.Config.APP_NAME
     )
 
     parser.add_argument('-f', '--file', 
@@ -41,6 +41,7 @@ if __name__ == "__main__":
     
     config.Config.init()
     Logger.init()
+    Module.init()
 
     if config.Config.general.debug:       
         # run the server attached to the console

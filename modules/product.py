@@ -4,6 +4,7 @@ import threading
 from logger import Logger
 from command import Command
 from event import Event
+from module import Module
 
 class Product:
      
@@ -431,6 +432,6 @@ class Product:
 
 
 # initialize the product module
-Product.init()
+Module.register('product', Product)
 
 

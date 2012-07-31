@@ -3,7 +3,6 @@ import sys
 import errno
 import socket
 import select
-import importlib
 
 import worker
 from manager import Manager
@@ -17,6 +16,7 @@ class Server:
 
     # default configuration values
     DEFAULTS = {
+        'server_name': Config.APP_NAME,
         'file': '/etc/motherbee/motherbee.conf',
         'host': '0.0.0.0',
         'port': 2000,
@@ -32,9 +32,6 @@ class Server:
 
         self.running = True
         self.connections = {}
-        self.modules = []
-
-        self.loadModules()
 
         # initialize the epoll object
         self.epoll = select.epoll()
@@ -51,6 +48,7 @@ class Server:
         Command.register(self.shutdownCmd, 'core.shutdown', 0, 'core.shutdown')
 
     def loadConfig(self):
+        self.config['server_name'] = Config.get('general', 'server_name', Server.DEFAULTS['server_name'])
         self.config['modules'] = Config.get('general', 'modules')
         self.config['host'] = Config.get('general', 'host', Server.DEFAULTS['host'])
         self.config['port'] = Config.getint('general', 'port', Server.DEFAULTS['port'])
@@ -62,30 +60,12 @@ class Server:
     def reloadEvent(self, *args):
         self.loadConfig()
 
-    def loadModules(self):
-        # load external modules
-        for m in self.config['modules'].split(','):
-            m = m.strip()
-            if len(m) == 0:
-                continue
-            if m in self.modules:
-                continue
-            try:
-                Logger.debug('loading module ' + m)
-                importlib.import_module(m)
-                self.modules.append(m)
-            except Exception as e:
-                Logger.error('error while loading module ' + m)
-                Logger.exception(str(e))
-
-
     def shutdownCmd(self, args):
         self.stop()
         return Command.result(Command.RET_SUCCESS)
 
     def stop(self):
         self.running = False
-
 
     def closeConnection(self, fd):
         self.epoll.unregister(fd)
@@ -107,7 +87,7 @@ class Server:
         listener = sock.fileno()
         self.epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
 
-        Logger.info("ItemReservation server started")
+        Logger.info("%s server started" % self.config['server_name'])
 
         while self.running:
             try:
@@ -164,6 +144,6 @@ class Server:
       
         self.manager.stop()
 
-        Logger.info("ItemReservation server ended")
+        Logger.info("%s server ended" % self.config['server_name'])
 
        
