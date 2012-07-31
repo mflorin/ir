@@ -90,8 +90,6 @@ class Options(object):
                 Options.general.scale_down_interval = config.getint('general', 'scale_down_interval') 
                 Options.logger.log_level = config.get('logger', 'log_level') 
                 Options.logger.log_file = config.get('logger', 'log_file')
-                Options.expiration.ttl = config.getint('expiration', 'ttl')
-                Options.expiration.cleanup_interval = config.getint('expiration', 'cleanup_interval') 
                 Options.database.persistence = config.getboolean('database', 'persistence') 
                 Options.database.file_name = config.get('database', 'file') 
                 Options.database.autosave_interval = config.getint('database', 'autosave_interval') 

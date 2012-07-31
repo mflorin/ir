@@ -16,14 +16,17 @@ from options import Options
 class Expiration(threading.Thread):
 
     """
-    Class constructor
+    Module startup
     """
     def __init__(self, options):
 
         self.running = False
 
         # application options
-        self.options = options
+        self.options = {}
+
+        self.options['ttl'] = Options.getint('expiration', 'ttl')
+        self.options['cleanup_interval'] = Options.getint('expiration', 'cleanup_interval')
 
         # event object used for sleeping
         self.event = threading.Event()
