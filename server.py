@@ -3,89 +3,90 @@ import sys
 import errno
 import socket
 import select
-import importlib
 
 import worker
 from manager import Manager
 from logger import Logger
-from expiration import Expiration
-from db import Db
 from command import Command
 from event import Event
+from config import Config
 
 class Server:
 
-    def __init__(self, options):
+    # default configuration values
+    DEFAULTS = {
+        'server_name': Config.APP_NAME,
+        'file': '/etc/motherbee/motherbee.conf',
+        'host': '0.0.0.0',
+        'port': 2000,
+        'backlog': 0,
+    } 
 
-        self.options = options.general
+    def __init__(self):
+
+        self.config = {}
+
+        # load configuration options
+        self.loadConfig()
+
         self.running = True
         self.connections = {}
-        self.modules = []
+
+        # initialize the epoll object
+        self.epoll = select.epoll()
 
         # workers manager
-        self.manager = Manager(self, self.options)
+        self.manager = Manager(self)
         self.manager.start()
+     
+        Event.register('core.reload', self.reloadEvent)
+        
+        Command.register(self.shutdownCmd, 'core.shutdown', 0, 'core.shutdown')
 
-        # expiration manager
-        self.expiration = Expiration(options.expiration)
-        self.expiration.start()
-        
-        # database manager
-        self.db = Db(options.database)
-        
-        # load external modules
-        self.loadModules()
-       
-        Event.register('reload', self.reloadEvent)
-        
-        Command.register(self.shutdown, 'shutdown', 0, 'shutdown')
+    def loadConfig(self):
+        self.config['server_name'] = Config.get('general', 'server_name', Server.DEFAULTS['server_name'])
+        self.config['host'] = Config.get('general', 'host', Server.DEFAULTS['host'])
+        self.config['port'] = Config.getint('general', 'port', Server.DEFAULTS['port'])
+        self.config['backlog'] = Config.getint('general', 'backlog', Server.DEFAULTS['backlog']) 
+        if self.config['backlog'] <= 0:
+            self.config['backlog'] = socket.SOMAXCONN
+ 
 
     def reloadEvent(self, *args):
-        self.loadModules()
+        self.loadConfig()
 
-    def loadModules(self):
-        # load external modules
-        for m in self.options.modules.split(','):
-            m = m.strip()
-            if len(m) == 0:
-                continue
-            if m in self.modules:
-                continue
-            try:
-                Logger.debug('loading module ' + m)
-                importlib.import_module(m)
-                self.modules.append(m)
-            except Exception as e:
-                Logger.error('error while loading module ' + m)
-                Logger.exception(str(e))
-
-
-    def shutdown(self, args):
+    def shutdownCmd(self, args):
         self.stop()
         return Command.result(Command.RET_SUCCESS)
 
     def stop(self):
         self.running = False
 
+    def closeConnection(self, fd):
+        self.epoll.unregister(fd)
+        addr = self.connections[fd]['addr']
+        Logger.info(addr[0] + ":" + str(addr[1]) + " left")
+        self.connections[fd]['sock'].close()
+        del self.connections[fd]
+
 
     def run(self):
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((self.options.host, self.options.port))
-        sock.listen(self.options.backlog)
+        sock.bind((self.config['host'], self.config['port']))
+        sock.listen(self.config['backlog'])
         sock.setblocking(0)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         listener = sock.fileno()
-        epoll = select.epoll()
-        epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
+        self.epoll.register(listener, select.EPOLLIN | select.EPOLLOUT | select.EPOLLHUP)
 
-        Logger.info("ItemReservation server started")
+        Logger.info("%s server started" % self.config['server_name'])
 
         while self.running:
             try:
-                events = epoll.poll()
+                events = self.epoll.poll()
                 for fd, event in events:
 
                     if fd == listener:
@@ -93,7 +94,7 @@ class Server:
                         (clientsock, address) = sock.accept()
                         clientsock.setblocking(0)
                         fileno = clientsock.fileno()
-                        epoll.register(fileno, select.EPOLLIN)
+                        self.epoll.register(fileno, select.EPOLLIN)
                         self.connections[fileno] = {
                             'sock': clientsock, 
                             'addr': address
@@ -103,18 +104,13 @@ class Server:
                         if self.manager.dispatch(self.connections[fd]) != True:
                             # Client closed connection
                             try:
-                                self.connections[fd]['sock'].shutdown(socket.SHUT_RDWR)
-                                epoll.modify(fd, 0)
+                                self.closeConnection(fd)
                             except:
                                 pass
 
                     elif event & select.EPOLLHUP:
                         # socket shutdown
-                        epoll.unregister(fd)
-                        addr = self.connections[fd]['addr']
-                        Logger.info(addr[0] + ":" + str(addr[1]) + " left")
-                        self.connections[fd]['sock'].close()
-                        del self.connections[fd]
+                        self.closeConnection(fd)
 
             except KeyboardInterrupt:
                 Logger.debug('CTRL-C was pressed. Stopping server')
@@ -129,19 +125,18 @@ class Server:
                     Logger.exception(str(e))
 
 
-        self.stop()
+#        self.stop()
+        
+        # dispatching shutdown to all modules
+        Event.dispatch('core.shutdown')
 
         Logger.debug("shutting down network sockets")
-        epoll.unregister(listener)
-        epoll.close()
+        self.epoll.unregister(listener)
+        self.epoll.close()
         sock.close()
 
-        self.db.stop()
-      
         self.manager.stop()
 
-        self.expiration.stop()
-
-        Logger.info("ItemReservation server ended")
+        Logger.info("%s server ended" % self.config['server_name'])
 
        

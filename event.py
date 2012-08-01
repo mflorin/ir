@@ -19,9 +19,9 @@ class Event:
     Dispatch an event to all its observers
     """
     @staticmethod
-    def dispatch(event, *args):
+    def dispatch(event, data = None):
         if event in Event.observers:
             for obs in Event.observers[event]:
-                obs(args)
+                obs(data)
         return True
         

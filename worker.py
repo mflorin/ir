@@ -9,18 +9,17 @@ from logger import Logger
 
 class Worker(threading.Thread):
 
-    def __init__(self, manager, options):
-        threading.Thread.__init__(self)
+    def __init__(self, manager):
+        super(Worker, self).__init__()
+        self.event = threading.Event()
+        self.running = False
         self.daemon = True
         self.manager = manager
-        self.options = options
         self.queue = Queue.Queue()
-
-    def isAvailable(self):
-        return not self.queue.full()
 
     def addJob(self, job):
         self.queue.put(job)
+        self.event.set()
 
     def doJob(self, job):
 
@@ -51,10 +50,41 @@ class Worker(threading.Thread):
                 Logger.warn("client " + addr[0] + ":" + str(addr[1]) + " left while trying to send response for command `" + c + "`")
                 # we're not going to insist on writing to a broken socket
 
-    def run(self):
-        while not self.queue.empty():
-            self.doJob(self.queue.get())
-            self.queue.task_done()
+    def getQSize(self):
+        return self.queue.qsize()
 
-        self.queue.join()
-        self.manager.notifyJoin(self)
+    def emptyQueue(self):
+        while not self.queue.empty():
+            self.queue.get_nowait()
+            self.queue.task_done()
+        
+    def isIdle(self):
+        return self.queue.empty()
+
+    def run(self):
+        while self.running:
+            self.event.wait()
+            while not self.queue.empty():
+                self.doJob(self.queue.get())
+                self.queue.task_done()
+            self.queue.join()
+            if self.running:
+                # do not add ourselves to the idle queue
+                # if stop() was called, otherwise we'll 
+                # end up adding ourselves to the queue
+                # right after we were stopped by the
+                # scale_down thread
+                self.manager.idleWorkerPush(self)
+            self.event.clear()
+
+    def start(self):
+        if not self.running:
+            self.running = True
+            super(Worker, self).start()
+
+    def stop(self):
+        if self.running:
+            self.running = False
+            self.event.set()
+            self.join()
+        return True

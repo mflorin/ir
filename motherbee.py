@@ -7,31 +7,25 @@ import socket
 import logging
 import argparse
 
-from options import Options
+import config
 from server import Server
 from logger import Logger
-from db import Db
+from module import Module
 
-def hand(sig, f):
-    print "test"
- 
-signal.signal(signal.SIGUSR1, hand)
-
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description='Item Reservation Server', 
-        prog='ItemReservation'
+        prog=config.Config.APP_NAME
     )
 
     parser.add_argument('-f', '--file', 
-        default=Options.general.file, 
+        default=config.Config.general.file, 
         help="configuration file")
 
     parser.add_argument('-d', '--debug',
-        default = Options.general.debug,
+        default = config.Config.general.debug,
         action='store_true',
         help="run in console, don't detach")
 
@@ -40,29 +34,22 @@ if __name__ == "__main__":
         version='%(prog)s ' + str(VERSION))
 
     try:
-        parser.parse_args(sys.argv[1:], namespace = Options.general)
+        parser.parse_args(sys.argv[1:], namespace = config.Config.general)
     except:
         sys.exit(1)
 
     
-    Options.init()
-    Options.load()
+    config.Config.init()
+    Logger.init()
+    Module.init()
 
-    Logger.init(Options.logger)
-
-    if Options.general.debug:
-        # add console logging
-        ch = logging.StreamHandler()
-        ch.setLevel(Options.logger.log_level)
-        ch.setFormatter(Logger.getFormatter())
-        Logger.logger.addHandler(ch)
-        
+    if config.Config.general.debug:       
         # run the server attached to the console
-        Server(Options).run()
+        Server().run()
     else:
         # run the server in background
         pid = os.fork()
         if pid == 0:
-            Server(Options).run()
+            Server().run()
         else:
             sys.exit(0)
